@@ -1,1 +1,39 @@
-Hello, I am testing
+# Kerala Gold Rate Tracker
+
+This repository provides a small Python script that downloads Kerala gold rates from [Keralagold.com](https://www.keralagold.com/), stores the history in CSV and Excel formats, and draws a simple SVG timeline graph.
+
+The script uses only the Python standard library, so it can run in restricted environments where installing packages is not possible.
+
+## Usage
+
+1. Run the tracker (uses live website):
+
+```bash
+python goldrate_tracker.py
+```
+
+2. If you want to test without internet access, point to the sample HTML file:
+
+```bash
+python goldrate_tracker.py --html-file sample_data/sample_kerala_page.html --date 2024-01-01
+```
+
+Outputs:
+
+- `gold_rates.csv`: history you can open in Excel or other tools.
+- `gold_rates.xlsx`: an Excel workbook generated from the CSV data.
+- `gold_rates.svg`: a lightweight line graph of the recorded prices.
+
+You can change the output names/locations using `--csv`, `--excel`, and `--graph` flags.
+
+## How it works
+
+- Fetches the Kerala rate page with a browser-like user agent.
+- Looks for the price nearest to the text `1 gram`/`1gm`/`1 g` in the HTML, matching the layout used on Keralagold.com.
+- Appends/replaces the entry for the given day in the CSV history.
+- Regenerates the Excel workbook and SVG chart from the stored history.
+
+## Notes
+
+- Network access is required to fetch live data. Use `--html-file` for offline testing or debugging.
+- Excel support is implemented with raw XML to avoid third-party dependencies; modern spreadsheet apps should read the generated file without issues.
