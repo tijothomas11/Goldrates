@@ -39,6 +39,10 @@ class GoldRateEntry:
     
 @dataclass
 class HistoryRecord:
+    """Represents a single historical gold-rate entry extracted from the KeralaGold history table. 
+    Examples:   2026-07-01 Morning 12905
+                2026-07-01 Evening 13040
+    """
     date: dt.date
     session: str | None
     price: int
@@ -49,6 +53,13 @@ def fetch_html(url: str = URL) -> str:
         return response.read().decode(response.headers.get_content_charset() or "utf-8", errors="replace")
 
 def parse_price(text: str) -> int:
+    """
+    Extract a numeric gold price from text.
+
+    Examples:
+        'Rs. 13,100' -> 13100
+        '13040' -> 13040
+    """
     match = re.search(r"(\d[\d,]*)", text)
 
     if not match:
@@ -85,6 +96,15 @@ class KeralaHistoryTableParser(HTMLParser):
             self.current_cell.append(data)
 
 def parse_history_table(html: str) -> list[HistoryRecord]:
+    """
+    Parse the KeralaGold historical rate table.
+    Returns:
+    A list of HistoryRecord objects containing:
+        - date
+        - session label
+        - price
+    Records are returned in the same order they appear on the website.
+    """
     parser = KeralaHistoryTableParser()
     parser.feed(html)
 
@@ -124,10 +144,27 @@ def parse_history_table(html: str) -> list[HistoryRecord]:
     return records
 
 def parse_date(text: str) -> dt.date:
+    """
+    Convert KeralaGold date strings into Python dates.
+
+    Example:
+        '13-Jul-26' -> datetime.date(2026, 7, 13)
+    """
     return dt.datetime.strptime(text.strip(), "%d-%b-%y").date()
 
 
 def extract_session(text: str) -> str | None:
+    """
+    Extract the session label from a table row.
+
+    Examples:
+        Morning
+        Forenoon
+        Afternoon
+        Evening
+        Today
+        Yesterday
+    """
     match = re.search(
         r"(Morning|Afternoon|Evening|Forenoon|Today|Yesterday)",
         text,
@@ -490,7 +527,25 @@ def generate_svg(svg_path: Path, entries: List[GoldRateEntry]) -> None:
 
 
 def update_history(html: str, csv_path: Path, xlsx_path: Path, svg_path: Path, date: dt.date | None = None) -> GoldRateEntry:
-    rate = extract_rate_from_html(html)
+    """Update the daily CSV, Excel workbook, and SVG using today's parsed rate."""
+    # Parse the website's historical table.
+    records = parse_history_table(html)
+
+    # Find the row explicitly marked as today's rate.
+    today_record = next(
+        (
+            record
+            for record in records
+            if record.session and record.session.lower() == "today"
+        ),
+        None,
+    )
+
+    # Stop rather than recording an incorrect value if today's row is missing.
+    if today_record is None:
+        raise ValueError("Could not find the row marked 'Today' in the KeralaGold history table.")
+
+    rate = float(today_record.price)
     target_date = date or dt.date.today()
 
     entries = load_history(csv_path)
@@ -528,26 +583,15 @@ def main(argv: List[str] | None = None) -> int:
             html = Path(args.html_file).read_text(encoding="utf-8")
         else:
             html = fetch_html()
-        records = parse_history_table(html)
-
-        print(f"\nFound {len(records)} records from live website\n")
-
-        for record in records[:10]:
-            print(record)
-
-        return 0
-
+           
     except Exception as exc:  # noqa: BLE001
         print(f"Failed to retrieve gold rate page: {exc}")
         return 1
+    # Download and parse the KeralaGold history table.
     records = parse_history_table(html)
-
-    print(f"Found {len(records)} records")
-
-    for record in records[:5]:
-        print(record)
-
-    return 0
+    
+    if not args.quiet:
+        print(f"Found {len(records)} historical records.")
 
     try:
         new_entry = update_history(html, Path(args.csv_path), Path(args.excel_path), Path(args.graph_path), date=target_date)
