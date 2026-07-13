@@ -20,11 +20,12 @@ import sys
 import urllib.request
 import xml.sax.saxutils
 import zipfile
+from html.parser import HTMLParser
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List
 
-URL = "https://www.keralagold.com/"
+URL = "https://www.keralagold.com/kerala-gold-rate-per-gram.htm"
 USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) Python GoldRateTracker"
 
 
@@ -35,13 +36,105 @@ class GoldRateEntry:
 
     def as_row(self) -> List[str]:
         return [self.date.isoformat(), f"{self.price:.2f}"]
-
+    
+@dataclass
+class HistoryRecord:
+    date: dt.date
+    session: str | None
+    price: int
 
 def fetch_html(url: str = URL) -> str:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(request) as response:
         return response.read().decode(response.headers.get_content_charset() or "utf-8", errors="replace")
 
+def parse_price(text: str) -> int:
+    match = re.search(r"(\d[\d,]*)", text)
+
+    if not match:
+        raise ValueError(f"Could not extract price from: {text}")
+
+    return int(match.group(1).replace(",", ""))
+
+class KeralaHistoryTableParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.cells = []
+        self.current_cell = []
+        self.in_td = False
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "td":
+            self.in_td = True
+            self.current_cell = []
+
+    def handle_endtag(self, tag):
+        if tag == "td":
+            self.in_td = False
+
+            text = " ".join(
+                part.strip()
+                for part in self.current_cell
+                if part.strip()
+            )
+
+            self.cells.append(text)
+
+    def handle_data(self, data):
+        if self.in_td:
+            self.current_cell.append(data)
+
+def parse_history_table(html: str) -> list[HistoryRecord]:
+    parser = KeralaHistoryTableParser()
+    parser.feed(html)
+
+    cells = [cell for cell in parser.cells if cell]
+
+    records: list[HistoryRecord] = []
+
+    i = 0
+
+    while i < len(cells) - 1:
+        date_cell = cells[i]
+        price_cell = cells[i + 1]
+
+        date_match = re.search(
+            r"\d{1,2}-[A-Za-z]{3}-\d{2}",
+            date_cell,
+        )
+
+        if not date_match:
+            i += 1
+            continue
+
+        try:
+            record = HistoryRecord(
+                date=parse_date(date_match.group(0)),
+                session=extract_session(date_cell),
+                price=parse_price(price_cell),
+            )
+
+            records.append(record)
+
+        except ValueError:
+            pass
+
+        i += 2
+
+    return records
+
+def parse_date(text: str) -> dt.date:
+    return dt.datetime.strptime(text.strip(), "%d-%b-%y").date()
+
+
+def extract_session(text: str) -> str | None:
+    match = re.search(
+        r"(Morning|Afternoon|Evening|Forenoon|Today|Yesterday)",
+        text,
+        re.IGNORECASE,
+    )
+
+    return match.group(1) if match else None
 
 def extract_rate_from_html(html: str) -> float:
     normalized = html.lower()
@@ -435,9 +528,26 @@ def main(argv: List[str] | None = None) -> int:
             html = Path(args.html_file).read_text(encoding="utf-8")
         else:
             html = fetch_html()
+        records = parse_history_table(html)
+
+        print(f"\nFound {len(records)} records from live website\n")
+
+        for record in records[:10]:
+            print(record)
+
+        return 0
+
     except Exception as exc:  # noqa: BLE001
         print(f"Failed to retrieve gold rate page: {exc}")
         return 1
+    records = parse_history_table(html)
+
+    print(f"Found {len(records)} records")
+
+    for record in records[:5]:
+        print(record)
+
+    return 0
 
     try:
         new_entry = update_history(html, Path(args.csv_path), Path(args.excel_path), Path(args.graph_path), date=target_date)
