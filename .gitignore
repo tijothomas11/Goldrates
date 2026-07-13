@@ -3,3 +3,5 @@ __pycache__/
 *.csv
 *.xlsx
 *.svg
+node_modules/
+.env
