@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import csv
 import datetime as dt
+import math
 import os
 import re
 import sys
@@ -178,51 +179,221 @@ def write_xlsx(xlsx_path: Path, entries: List[GoldRateEntry]) -> None:
         zf.writestr("xl/worksheets/sheet1.xml", sheet_xml)
 
 
+def _nice_ticks(vmin: float, vmax: float, n: int = 5) -> List[float]:
+    """Generate nicely rounded tick values spanning vmin to vmax."""
+    span = vmax - vmin
+    if span <= 0:
+        return [round(vmin, 2)]
+    raw_step = span / n
+    exp = math.floor(math.log10(raw_step))
+    base = 10 ** exp
+    fraction = raw_step / base
+    if fraction <= 1:
+        nice_step = base
+    elif fraction <= 2:
+        nice_step = 2 * base
+    elif fraction <= 5:
+        nice_step = 5 * base
+    else:
+        nice_step = 10 * base
+    start = math.floor(vmin / nice_step) * nice_step
+    end = math.ceil(vmax / nice_step) * nice_step
+    ticks: List[float] = []
+    v = start
+    while v <= end + nice_step * 0.001:
+        ticks.append(round(v, 2))
+        v += nice_step
+    return ticks
+
+
+def _format_rupee(value: float) -> str:
+    return f"\u20b9{value:,.0f}"
+
+
+def _format_date_short(d: dt.date) -> str:
+    return f"{d.strftime('%b')} {d.day}"
+
+
+def _thin_indices(n: int, max_count: int) -> List[int]:
+    """Return a subset of indices 0..n-1, keeping first and last, capped at max_count."""
+    if n <= max_count:
+        return list(range(n))
+    step = math.ceil(n / max_count)
+    indices = list(range(0, n, step))
+    if indices[-1] != n - 1:
+        indices.append(n - 1)
+    return indices
+
+
 def generate_svg(svg_path: Path, entries: List[GoldRateEntry]) -> None:
     if not entries:
-        svg_path.write_text("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"600\" height=\"400\">"
-                            "<text x=\"20\" y=\"200\">No data available</text></svg>")
+        svg_path.write_text(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="900" height="500" font-family="sans-serif">'
+            '<rect width="100%" height="100%" fill="#fafafa"/>'
+            '<text x="450" y="250" font-size="18" text-anchor="middle" fill="#999">No data available</text>'
+            '</svg>',
+            encoding="utf-8",
+        )
         return
-
-    width, height = 800, 400
-    padding = 60
 
     entries = sorted(entries, key=lambda e: e.date)
     dates = [e.date.toordinal() for e in entries]
     prices = [e.price for e in entries]
+    n = len(entries)
 
-    min_date, max_date = min(dates), max(dates)
-    min_price, max_price = min(prices), max(prices)
+    width, height = 900, 500
+    title_y = 32
+    subtitle_y = 54
+    chart_left = 80
+    chart_right = width - 30
+    chart_top = 80
+    chart_bottom = height - 65
+    chart_w = chart_right - chart_left
+    chart_h = chart_bottom - chart_top
+
+    min_price = min(prices)
+    max_price = max(prices)
+    avg_price = sum(prices) / len(prices)
+
+    y_ticks = _nice_ticks(min_price, max_price, 5)
+    if len(y_ticks) < 2:
+        y_min = min_price - 50
+        y_max = max_price + 50
+        y_ticks = _nice_ticks(y_min, y_max, 5)
+    else:
+        y_min = y_ticks[0]
+        y_max = y_ticks[-1]
+
+    min_date = min(dates)
+    max_date = max(dates)
     date_span = max(max_date - min_date, 1)
-    price_span = max(max_price - min_price, 1)
 
     def scale_x(date_ord: int) -> float:
-        return padding + (date_ord - min_date) / date_span * (width - 2 * padding)
+        return chart_left + (date_ord - min_date) / date_span * chart_w
 
     def scale_y(price: float) -> float:
-        return height - padding - (price - min_price) / price_span * (height - 2 * padding)
+        return chart_bottom - (price - y_min) / (y_max - y_min) * chart_h
 
     points = [(scale_x(d), scale_y(p)) for d, p in zip(dates, prices)]
-    path_d = "M " + " L ".join(f"{x:.2f},{y:.2f}" for x, y in points)
 
-    price_labels = "".join(
-        f"<text x=\"{scale_x(dates[i]):.2f}\" y=\"{scale_y(price)-10:.2f}\" font-size=\"12\" text-anchor=\"middle\">{entries[i].price:.0f}</text>"
-        for i, price in enumerate(prices)
+    current_idx = n - 1
+    min_idx = prices.index(min_price)
+    max_idx = prices.index(max_price)
+    special_indices = {current_idx, min_idx, max_idx}
+
+    path_d = ""
+    if n >= 2:
+        path_d = "M " + " L ".join(f"{x:.2f},{y:.2f}" for x, y in points)
+
+    area_d = ""
+    if n >= 2:
+        area_d = (
+            f"M {points[0][0]:.2f},{chart_bottom:.2f} "
+            + " ".join(f"L {x:.2f},{y:.2f}" for x, y in points)
+            + f" L {points[-1][0]:.2f},{chart_bottom:.2f} Z"
+        )
+
+    grid_svg = ""
+    y_label_svg = ""
+    for tick in y_ticks:
+        y = scale_y(tick)
+        if chart_top - 5 <= y <= chart_bottom + 5:
+            grid_svg += f'<line x1="{chart_left}" y1="{y:.2f}" x2="{chart_right}" y2="{y:.2f}" stroke="#f0f0f0" stroke-width="1"/>'
+            y_label_svg += f'<text x="{chart_left - 10}" y="{y + 4:.2f}" font-size="12" text-anchor="end" fill="#666">{_format_rupee(tick)}</text>'
+
+    max_x_labels = max(int(chart_w / 65), 2)
+    x_label_indices = set(_thin_indices(n, max_x_labels))
+    x_label_svg = ""
+    for i in sorted(x_label_indices):
+        x = scale_x(dates[i])
+        x_label_svg += f'<text x="{x:.2f}" y="{chart_bottom + 22:.2f}" font-size="11" text-anchor="middle" fill="#666">{_format_date_short(entries[i].date)}</text>'
+
+    max_price_labels = max(int(chart_w / 55), 3)
+    other_indices = [i for i in range(n) if i not in special_indices]
+    other_label_count = max(max_price_labels - len(special_indices), 0)
+    other_label_set = set(_thin_indices(len(other_indices), other_label_count)) if other_label_count > 0 else set()
+    labeled = set(special_indices)
+    for j, i in enumerate(other_indices):
+        if j in other_label_set:
+            labeled.add(i)
+
+    label_color: dict[int, str] = {}
+    label_color[min_idx] = "#2e7d32"
+    label_color[max_idx] = "#c62828"
+    label_color[current_idx] = "#e65100"
+    price_label_svg = ""
+    for i in sorted(labeled):
+        x, y = points[i]
+        color = label_color.get(i, "#555")
+        price_label_svg += f'<text x="{x:.2f}" y="{y - 12:.2f}" font-size="11" text-anchor="middle" fill="{color}" font-weight="bold">{_format_rupee(prices[i])}</text>'
+
+    marker_svg = ""
+    if n <= 50:
+        for i in range(n):
+            if i in special_indices:
+                continue
+            x, y = points[i]
+            marker_svg += f'<circle cx="{x:.2f}" cy="{y:.2f}" r="3" fill="#d4a017" opacity="0.6"/>'
+
+    if n > 1:
+        if min_idx != current_idx:
+            mx, my = points[min_idx]
+            marker_svg += f'<rect x="{mx-5:.2f}" y="{my-5:.2f}" width="10" height="10" fill="#2e7d32" stroke="#fff" stroke-width="1.5" transform="rotate(45 {mx:.2f} {my:.2f})"/>'
+        if max_idx != current_idx:
+            mx2, my2 = points[max_idx]
+            marker_svg += f'<rect x="{mx2-5:.2f}" y="{my2-5:.2f}" width="10" height="10" fill="#c62828" stroke="#fff" stroke-width="1.5" transform="rotate(45 {mx2:.2f} {my2:.2f})"/>'
+
+    cx, cy = points[current_idx]
+    marker_svg += f'<circle cx="{cx:.2f}" cy="{cy:.2f}" r="6" fill="#e65100" stroke="#fff" stroke-width="2"/>'
+
+    stats_x = chart_right - 175
+    stats_y = chart_top + 10
+    stats_w = 165
+    stats_h = 108
+    stats_lines = [
+        ("Current", _format_rupee(prices[current_idx]), "#e65100"),
+        ("Minimum", _format_rupee(min_price), "#2e7d32"),
+        ("Maximum", _format_rupee(max_price), "#c62828"),
+        ("Average", _format_rupee(avg_price), "#666"),
+    ]
+    stats_svg = f'<rect x="{stats_x}" y="{stats_y}" width="{stats_w}" height="{stats_h}" fill="#ffffff" stroke="#e0e0e0" stroke-width="1" rx="6"/>'
+    stats_svg += f'<text x="{stats_x + stats_w/2}" y="{stats_y + 18}" font-size="13" text-anchor="middle" fill="#555" font-weight="bold">Summary</text>'
+    stats_svg += f'<line x1="{stats_x + 10}" y1="{stats_y + 23}" x2="{stats_x + stats_w - 10}" y2="{stats_y + 23}" stroke="#eee" stroke-width="1"/>'
+    for j, (label, value, color) in enumerate(stats_lines):
+        ly = stats_y + 42 + j * 16
+        stats_svg += f'<text x="{stats_x + 12}" y="{ly}" font-size="12" fill="#888">{label}</text>'
+        stats_svg += f'<text x="{stats_x + stats_w - 12}" y="{ly}" font-size="12" text-anchor="end" fill="{color}" font-weight="bold">{value}</text>'
+
+    if n == 1:
+        subtitle = entries[0].date.isoformat()
+    else:
+        subtitle = f"{entries[0].date.strftime('%b %d, %Y')} \u2013 {entries[-1].date.strftime('%b %d, %Y')}  \u00b7  {n} data points"
+
+    svg = (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" font-family="sans-serif">\n'
+        f'  <rect width="100%" height="100%" fill="#fafafa"/>\n'
+        f'  <defs>\n'
+        f'    <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">\n'
+        f'      <stop offset="0%" stop-color="#d4a017" stop-opacity="0.25"/>\n'
+        f'      <stop offset="100%" stop-color="#d4a017" stop-opacity="0.02"/>\n'
+        f'    </linearGradient>\n'
+        f'  </defs>\n'
+        f'  <text x="{width/2}" y="{title_y}" font-size="20" text-anchor="middle" fill="#333" font-weight="bold">Kerala Gold Rate History</text>\n'
+        f'  <text x="{width/2}" y="{subtitle_y}" font-size="13" text-anchor="middle" fill="#888">{subtitle}</text>\n'
+        f'  <g>{grid_svg}</g>\n'
+        + (f'  <path d="{area_d}" fill="url(#areaGrad)"/>\n' if area_d else '')
+        + (f'  <path d="{path_d}" fill="none" stroke="#d4a017" stroke-width="2.5"/>\n' if path_d else '')
+        + f'  <line x1="{chart_left}" y1="{chart_bottom}" x2="{chart_right}" y2="{chart_bottom}" stroke="#ccc" stroke-width="1.5"/>\n'
+        + f'  <line x1="{chart_left}" y1="{chart_top}" x2="{chart_left}" y2="{chart_bottom}" stroke="#ccc" stroke-width="1.5"/>\n'
+        + f'  <g>{y_label_svg}</g>\n'
+        + f'  <g>{x_label_svg}</g>\n'
+        + f'  <g>{price_label_svg}</g>\n'
+        + f'  <g>{marker_svg}</g>\n'
+        + f'  {stats_svg}\n'
+        + f'</svg>'
     )
 
-    svg_content = f"""
-<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width}\" height=\"{height}\">
-  <rect width=\"100%\" height=\"100%\" fill=\"#ffffff\"/>
-  <g stroke=\"#e0e0e0\">
-    <line x1=\"{padding}\" y1=\"{height-padding}\" x2=\"{width-padding}\" y2=\"{height-padding}\"/>
-    <line x1=\"{padding}\" y1=\"{padding}\" x2=\"{padding}\" y2=\"{height-padding}\"/>
-  </g>
-  <path d=\"{path_d}\" fill=\"none\" stroke=\"#c79a00\" stroke-width=\"2.5\"/>
-  {price_labels}
-  <text x=\"{width/2}\" y=\"30\" font-size=\"18\" text-anchor=\"middle\">Kerala gold rate history</text>
-</svg>
-"""
-    svg_path.write_text(svg_content.strip())
+    svg_path.write_text(svg, encoding="utf-8")
 
 
 def update_history(html: str, csv_path: Path, xlsx_path: Path, svg_path: Path, date: dt.date | None = None) -> GoldRateEntry:
