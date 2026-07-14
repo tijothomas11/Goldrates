@@ -143,6 +143,35 @@ def parse_history_table(html: str) -> list[HistoryRecord]:
 
     return records
 
+def save_detailed_history_csv(
+    csv_path: Path,
+    records: list[HistoryRecord],
+) -> None:
+    """
+    Save all parsed historical records to a CSV file.
+
+    Every website entry is preserved, including multiple
+    rates recorded on the same date.
+
+    Columns:
+        date, session, price
+    """
+    with csv_path.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.writer(file)
+
+        # Write the column headings.
+        writer.writerow(["date", "session", "price"])
+
+        # Preserve records in the same order as the website.
+        for record in records:
+            writer.writerow(
+                [
+                    record.date.isoformat(),
+                    record.session or "",
+                    record.price,
+                ]
+            )
+
 def parse_date(text: str) -> dt.date:
     """
     Convert KeralaGold date strings into Python dates.
@@ -589,9 +618,14 @@ def main(argv: List[str] | None = None) -> int:
         return 1
     # Download and parse the KeralaGold history table.
     records = parse_history_table(html)
-    
+
+    # Save every historical entry, including intraday updates.
+    detailed_csv_path = Path("gold_rates_detailed.csv")
+    save_detailed_history_csv(detailed_csv_path, records)
+
     if not args.quiet:
         print(f"Found {len(records)} historical records.")
+        print(f"Detailed CSV file: {detailed_csv_path.resolve()}")
 
     try:
         new_entry = update_history(html, Path(args.csv_path), Path(args.excel_path), Path(args.graph_path), date=target_date)
