@@ -28,6 +28,8 @@ from typing import Iterable, List
 URL = "https://www.keralagold.com/kerala-gold-rate-per-gram.htm"
 USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) Python GoldRateTracker"
 
+# The tracker collects the latest gold rates from the KeralaGold website.
+# The values are parsed from HTML and stored in CSV or Excel form.
 
 @dataclass
 class GoldRateEntry:
@@ -70,12 +72,14 @@ def parse_price(text: str) -> int:
 class KeralaHistoryTableParser(HTMLParser):
     def __init__(self):
         super().__init__()
+        # Store text from every table cell in the history page.
         self.cells = []
         self.current_cell = []
         self.in_td = False
 
     def handle_starttag(self, tag, attrs):
         if tag == "td":
+            # We are now inside a table cell. Start collecting the text.
             self.in_td = True
             self.current_cell = []
 
@@ -124,16 +128,21 @@ def parse_history_table(html: str) -> list[HistoryRecord]:
     parser = KeralaHistoryTableParser()
     parser.feed(html)
 
+    # Remove any blank cells that can happen in malformed HTML.
     cells = [cell for cell in parser.cells if cell]
 
     records: list[HistoryRecord] = []
 
     i = 0
 
+    # The page stores dates and prices in adjacent table cells.
+    # We parse them two at a time: one date cell followed by one price cell.
     while i < len(cells) - 1:
         date_cell = cells[i]
         price_cell = cells[i + 1]
 
+        # The page alternates date cells and price cells.
+        # We only accept a pair when the first cell contains a date string.
         date_match = re.search(
             r"\d{1,2}-[A-Za-z]{3}-\d{2}",
             date_cell,
@@ -178,6 +187,8 @@ def save_detailed_history_csv(
         # Write the column headings.
         writer.writerow(["date", "session", "price"])
 
+        # Write a row for each parsed history record.
+
         # Preserve records in the same order as the website.
         for record in records:
             writer.writerow(
@@ -210,6 +221,7 @@ def extract_session(text: str) -> str | None:
         Today
         Yesterday
     """
+    # The history table can include descriptive labels like Today or Morning.
     match = re.search(
         r"(Morning|Afternoon|Evening|Forenoon|Today|Yesterday)",
         text,
@@ -219,6 +231,7 @@ def extract_session(text: str) -> str | None:
     return match.group(1) if match else None
 
 def extract_rate_from_html(html: str) -> float:
+    # Lowercasing makes pattern matching easier for currency labels.
     normalized = html.lower()
     price_pattern = re.compile(r"[₹rs\.]*\s*([0-9][0-9,]*(?:\.[0-9]+)?)")
 
@@ -238,6 +251,8 @@ def extract_rate_from_html(html: str) -> float:
         if value >= 100:
             return value
 
+    # If not found explicitly, search for any '1 gram' context and look
+    # for a nearby numeric price in the surrounding text.
     gram_positions = [m.start() for m in re.finditer(r"1\s*(?:gram|gm|g)", normalized)]
 
     def find_price_near(index: int) -> float | None:
@@ -260,6 +275,8 @@ def extract_rate_from_html(html: str) -> float:
 
 
 def load_history(csv_path: Path) -> List[GoldRateEntry]:
+    # Load a simplified two-column daily history CSV if the detailed
+    # permanent history is unavailable.
     entries: List[GoldRateEntry] = []
     if not csv_path.exists():
         return entries
@@ -770,6 +787,7 @@ def update_history(
         skipped_count = 0
 
     # The live value takes precedence for the target date.
+    # This avoids duplicate entries for the same day.
     filtered = [
         entry
         for entry in entries
