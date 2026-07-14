@@ -5,3 +5,6 @@ __pycache__/
 *.svg
 node_modules/
 .env
+
+# Keep the permanent historical dataset in GitHub.
+!data/gold_rates_history.csv
