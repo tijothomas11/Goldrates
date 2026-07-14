@@ -80,6 +80,7 @@ def parse_decimal(
 ) -> Decimal | None:
     """Convert optional CSV text to a Decimal."""
 
+    # A blank or missing value is treated as absent data.
     if value is None:
         return None
 
@@ -127,6 +128,7 @@ def load_csv(
 ) -> tuple[list[str], list[dict[str, str]]]:
     """Load a CSV and return its fields and rows."""
 
+    # The promotion script must only operate on valid CSV files.
     if not path.exists():
         raise FileNotFoundError(
             f"Required file was not found: {path}"
@@ -150,6 +152,7 @@ def validate_rows(
 ) -> list[str]:
     """Return all validation errors found in the rows."""
 
+    # Ensure the backfill CSV is the exact expected dataset and has no data issues.
     errors: list[str] = []
 
     if require_exact_dataset:
@@ -433,6 +436,7 @@ def validate_rows(
 def sha256_file(path: Path) -> str:
     """Return the SHA-256 hash of a file."""
 
+    # Hash the file contents to ensure the source does not change mid-promotion.
     digest = hashlib.sha256()
 
     with path.open("rb") as file:
@@ -480,6 +484,9 @@ def write_csv_atomically(
     rows: list[dict[str, str]],
 ) -> None:
     """Write the CSV through a temporary file."""
+
+    # Write to a temp file first, then replace the destination.
+    # This prevents partial files when something fails mid-write.
 
     path.parent.mkdir(
         parents=True,

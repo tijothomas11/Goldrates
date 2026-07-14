@@ -146,6 +146,8 @@ def validate_backfill_rows(
 ) -> dict[str, object]:
     """Validate every row in the main backfill CSV."""
 
+    # The validation checks all prices, dates, source URLs, and calculated
+    # fields so that the backfill is safe to trust.
     errors: list[str] = []
     warnings: list[str] = []
 

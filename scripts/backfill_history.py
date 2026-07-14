@@ -189,6 +189,9 @@ def load_pavan_archive_urls(
             f"Archive-link file was not found: {csv_path}"
         )
 
+    # The archive_links.csv file contains many links, but we only want
+    # the monthly pavan archive pages for building the backfill.
+
     urls: list[str] = []
 
     with csv_path.open(
@@ -258,6 +261,9 @@ def fetch_with_retries(
     Returns None when the server returns 404 and the page is
     optional. Temporary failures are retried.
     """
+
+    # This helper keeps the backfill process resilient when the website
+    # returns occasional temporary errors.
     for attempt in range(
         1,
         MAX_REQUEST_ATTEMPTS + 1,

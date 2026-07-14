@@ -56,6 +56,9 @@ def main() -> int:
         today.month,
     )
 
+    # Build a list of month-based archive URLs from the first available
+    # archive month up to the previous complete month.
+
     rows: list[dict[str, str]] = []
 
     while (year, month) <= (final_year, final_month):
