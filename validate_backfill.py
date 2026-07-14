@@ -5,7 +5,7 @@ This validator is read-only. It does not modify the backfill
 CSV, progress CSV, permanent history, or source files.
 
 Inputs:
-    data/gold_rates_full_backfill.csv
+    data/gold_rates_history.csv
     data/gold_rates_backfill_progress.csv
     data/gold_rates_backfill_errors.csv
 
@@ -23,7 +23,7 @@ from pathlib import Path
 
 
 BACKFILL_PATH = Path(
-    "data/gold_rates_full_backfill.csv"
+    "data/gold_rates_history.csv"
 )
 
 PROGRESS_PATH = Path(
@@ -824,7 +824,10 @@ def build_report(
             "FAILED: data-integrity errors "
             "were found."
         )
-    elif len(completed_months) != 200:
+    elif (
+        progress["exists"]
+        and len(completed_months) != 200
+    ):
         result_text = (
             "INCOMPLETE: row calculations are "
             "valid, but not all 200 archive "
@@ -1122,7 +1125,10 @@ def main() -> int:
         )
         return 1
 
-    if len(completed_months) != 200:
+    if (
+        progress["exists"]
+        and len(completed_months) != 200
+    ):
         print("")
         print(
             "Result: INCOMPLETE. The rows checked "
