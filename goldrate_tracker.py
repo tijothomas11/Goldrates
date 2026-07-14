@@ -96,6 +96,22 @@ class KeralaHistoryTableParser(HTMLParser):
             self.current_cell.append(data)
 
 def parse_history_table(html: str) -> list[HistoryRecord]:
+        # Repair a known malformed KeralaGold pattern such as:
+    #
+    # <span class="kg2"4575</span>
+    #
+    # The source is missing the closing ">" after the class
+    # attribute. Convert it to:
+    #
+    # <span class="kg2">4575</span>
+    html = re.sub(
+        r'(<span\s+class=["\']kg2["\'])'
+        r'(\d[\d,]*)'
+        r'(</span>)',
+        r"\1>\2\3",
+        html,
+        flags=re.IGNORECASE,
+    )
     """
     Parse the KeralaGold historical rate table.
     Returns:
@@ -260,6 +276,151 @@ def load_history(csv_path: Path) -> List[GoldRateEntry]:
             entries.append(GoldRateEntry(date=date_value, price=price_value))
     return entries
 
+
+
+PERMANENT_HISTORY_FIELDS = [
+    "date",
+    "session",
+    "price_22k_1g_published",
+    "price_22k_8g_published",
+    "price_22k_1g_from_pavan",
+    "difference_22k",
+    "normalized_price_22k_1g",
+    "gram_source_url",
+    "pavan_source_url",
+]
+
+
+SESSION_ORDER = {
+    "": 0,
+    "Early Morning": 1,
+    "Morning": 2,
+    "Forenoon": 3,
+    "Noon": 4,
+    "Afternoon": 5,
+    "Evening": 6,
+    "Night": 7,
+}
+
+
+def load_permanent_history(csv_path: Path):
+    """
+    Load the detailed permanent historical dataset.
+
+    The permanent file contains multiple observations on some
+    dates. For the simplified CSV, Excel workbook, and SVG,
+    the latest available session on each date is selected.
+
+    Returns:
+        daily_entries:
+            One GoldRateEntry per calendar date.
+
+        observation_count:
+            Total number of detailed source observations.
+
+        skipped_count:
+            Number of malformed or incomplete rows skipped.
+    """
+
+    if not csv_path.exists():
+        return [], 0, 0
+
+    with csv_path.open(
+        "r",
+        encoding="utf-8",
+        newline="",
+    ) as file:
+        reader = csv.DictReader(file)
+
+        if reader.fieldnames != PERMANENT_HISTORY_FIELDS:
+            raise ValueError(
+                "Permanent history has an unexpected schema. "
+                f"Expected {PERMANENT_HISTORY_FIELDS}; "
+                f"found {reader.fieldnames}."
+            )
+
+        rows = list(reader)
+
+    latest_by_date = {}
+    skipped_count = 0
+
+    for row_number, row in enumerate(
+        rows,
+        start=2,
+    ):
+        date_text = row.get(
+            "date",
+            "",
+        ).strip()
+
+        session = row.get(
+            "session",
+            "",
+        ).strip()
+
+        price_text = row.get(
+            "normalized_price_22k_1g",
+            "",
+        ).strip()
+
+        if not date_text or not price_text:
+            skipped_count += 1
+            continue
+
+        try:
+            date_value = dt.date.fromisoformat(
+                date_text
+            )
+
+            price_value = float(
+                price_text.replace(",", "")
+            )
+
+        except ValueError as exc:
+            raise ValueError(
+                "Invalid permanent-history row "
+                f"{row_number}: {exc}"
+            ) from exc
+
+        if price_value <= 0:
+            raise ValueError(
+                "Invalid permanent-history price on "
+                f"row {row_number}: {price_value}"
+            )
+
+        session_rank = SESSION_ORDER.get(
+            session,
+            50,
+        )
+
+        existing = latest_by_date.get(
+            date_value
+        )
+
+        if (
+            existing is None
+            or session_rank >= existing[0]
+        ):
+            latest_by_date[date_value] = (
+                session_rank,
+                GoldRateEntry(
+                    date=date_value,
+                    price=price_value,
+                ),
+            )
+
+    daily_entries = [
+        value[1]
+        for _, value in sorted(
+            latest_by_date.items()
+        )
+    ]
+
+    return (
+        daily_entries,
+        len(rows),
+        skipped_count,
+    )
 
 def save_history(csv_path: Path, entries: Iterable[GoldRateEntry]) -> None:
     with csv_path.open("w", newline="") as fp:
@@ -555,91 +716,328 @@ def generate_svg(svg_path: Path, entries: List[GoldRateEntry]) -> None:
     svg_path.write_text(svg, encoding="utf-8")
 
 
-def update_history(html: str, csv_path: Path, xlsx_path: Path, svg_path: Path, date: dt.date | None = None) -> GoldRateEntry:
-    """Update the daily CSV, Excel workbook, and SVG using today's parsed rate."""
-    # Parse the website's historical table.
-    records = parse_history_table(html)
 
-    # Find the row explicitly marked as today's rate.
+def update_history(
+    html: str,
+    permanent_history_path: Path,
+    csv_path: Path,
+    xlsx_path: Path,
+    svg_path: Path,
+    date: dt.date | None = None,
+):
+    """
+    Regenerate simplified outputs from permanent history.
+
+    The detailed nine-column permanent history is read-only.
+    This function writes only the simplified CSV, Excel file,
+    and SVG chart.
+    """
+
+    live_records = parse_history_table(html)
+
     today_record = next(
         (
             record
-            for record in records
-            if record.session and record.session.lower() == "today"
+            for record in live_records
+            if record.session
+            and record.session.lower() == "today"
         ),
         None,
     )
 
-    # Stop rather than recording an incorrect value if today's row is missing.
     if today_record is None:
-        raise ValueError("Could not find the row marked 'Today' in the KeralaGold history table.")
+        raise ValueError(
+            "Could not find the row marked 'Today' "
+            "in the KeralaGold history table."
+        )
 
     rate = float(today_record.price)
     target_date = date or dt.date.today()
 
-    entries = load_history(csv_path)
-    filtered = [entry for entry in entries if entry.date != target_date]
-    new_entry = GoldRateEntry(date=target_date, price=rate)
+    (
+        entries,
+        observation_count,
+        skipped_count,
+    ) = load_permanent_history(
+        permanent_history_path
+    )
+
+    used_permanent_history = bool(entries)
+
+    if not entries:
+        entries = load_history(csv_path)
+        observation_count = len(entries)
+        skipped_count = 0
+
+    # The live value takes precedence for the target date.
+    filtered = [
+        entry
+        for entry in entries
+        if entry.date != target_date
+    ]
+
+    new_entry = GoldRateEntry(
+        date=target_date,
+        price=rate,
+    )
+
     filtered.append(new_entry)
 
-    save_history(csv_path, filtered)
-    write_xlsx(xlsx_path, sorted(filtered, key=lambda e: e.date))
-    generate_svg(svg_path, filtered)
-    return new_entry
+    filtered.sort(
+        key=lambda entry: entry.date
+    )
+
+    save_history(
+        csv_path,
+        filtered,
+    )
+
+    write_xlsx(
+        xlsx_path,
+        filtered,
+    )
+
+    generate_svg(
+        svg_path,
+        filtered,
+    )
+
+    return (
+        new_entry,
+        observation_count,
+        len(filtered),
+        skipped_count,
+        used_permanent_history,
+    )
 
 
 def parse_args(argv: List[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Track Kerala gold rates and store them in Excel.")
-    parser.add_argument("--csv", dest="csv_path", default="gold_rates.csv", help="CSV file for storing history.")
-    parser.add_argument("--excel", dest="excel_path", default="gold_rates.xlsx", help="Excel (.xlsx) file to write.")
-    parser.add_argument("--graph", dest="graph_path", default="gold_rates.svg", help="SVG graph output path.")
-    parser.add_argument("--html-file", dest="html_file", help="Use a local HTML file instead of fetching from the internet.")
-    parser.add_argument("--date", dest="date", help="Override the entry date (YYYY-MM-DD).")
-    parser.add_argument("--quiet", action="store_true", help="Suppress informational output.")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Track Kerala gold rates and generate "
+            "CSV, Excel, and SVG outputs."
+        )
+    )
+
+    parser.add_argument(
+        "--history",
+        dest="history_path",
+        default="data/gold_rates_history.csv",
+        help=(
+            "Detailed permanent history used as the "
+            "read-only source for generated outputs."
+        ),
+    )
+
+    parser.add_argument(
+        "--csv",
+        dest="csv_path",
+        default="gold_rates.csv",
+        help=(
+            "Simplified two-column daily CSV output."
+        ),
+    )
+
+    parser.add_argument(
+        "--excel",
+        dest="excel_path",
+        default="gold_rates.xlsx",
+        help="Excel (.xlsx) output path.",
+    )
+
+    parser.add_argument(
+        "--graph",
+        dest="graph_path",
+        default="gold_rates.svg",
+        help="SVG graph output path.",
+    )
+
+    parser.add_argument(
+        "--html-file",
+        dest="html_file",
+        help=(
+            "Use a local HTML file instead of "
+            "fetching from the internet."
+        ),
+    )
+
+    parser.add_argument(
+        "--date",
+        dest="date",
+        help=(
+            "Override the live entry date "
+            "(YYYY-MM-DD)."
+        ),
+    )
+
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress informational output.",
+    )
+
     return parser.parse_args(argv)
 
 
 def main(argv: List[str] | None = None) -> int:
-    args = parse_args(argv or sys.argv[1:])
+    args = parse_args(
+        argv or sys.argv[1:]
+    )
+
     try:
-        target_date = dt.date.fromisoformat(args.date) if args.date else None
+        target_date = (
+            dt.date.fromisoformat(args.date)
+            if args.date
+            else None
+        )
+
     except ValueError:
-        print("Invalid date format. Use YYYY-MM-DD.")
+        print(
+            "Invalid date format. Use YYYY-MM-DD."
+        )
         return 1
+
+    permanent_history_path = Path(
+        args.history_path
+    )
+
+    # Protect the permanent detailed history from accidentally
+    # being selected as the simplified two-column CSV output.
+    try:
+        if (
+            permanent_history_path.resolve()
+            == Path(args.csv_path).resolve()
+        ):
+            print(
+                "ERROR: --history and --csv must not "
+                "refer to the same file."
+            )
+            print(
+                "The permanent detailed history is "
+                "read-only during normal tracker runs."
+            )
+            return 1
+
+    except OSError:
+        pass
 
     try:
         if args.html_file:
-            html = Path(args.html_file).read_text(encoding="utf-8")
+            html = Path(
+                args.html_file
+            ).read_text(
+                encoding="utf-8"
+            )
         else:
             html = fetch_html()
-           
-    except Exception as exc:  # noqa: BLE001
-        print(f"Failed to retrieve gold rate page: {exc}")
-        return 1
-    # Download and parse the KeralaGold history table.
-    records = parse_history_table(html)
 
-    # Save every historical entry, including intraday updates.
-    detailed_csv_path = Path("gold_rates_detailed.csv")
-    save_detailed_history_csv(detailed_csv_path, records)
+    except Exception as exc:  # noqa: BLE001
+        print(
+            f"Failed to retrieve gold rate page: "
+            f"{exc}"
+        )
+        return 1
+
+    # Parse and preserve the current webpage observations
+    # separately from the permanent historical dataset.
+    live_records = parse_history_table(html)
+
+    detailed_csv_path = Path(
+        "gold_rates_detailed.csv"
+    )
+
+    save_detailed_history_csv(
+        detailed_csv_path,
+        live_records,
+    )
 
     if not args.quiet:
-        print(f"Found {len(records)} historical records.")
-        print(f"Detailed CSV file: {detailed_csv_path.resolve()}")
+        print(
+            f"Found {len(live_records)} live-page "
+            "historical observations."
+        )
+        print(
+            "Detailed live-page CSV: "
+            f"{detailed_csv_path.resolve()}"
+        )
 
     try:
-        new_entry = update_history(html, Path(args.csv_path), Path(args.excel_path), Path(args.graph_path), date=target_date)
+        (
+            new_entry,
+            observation_count,
+            daily_count,
+            skipped_count,
+            used_permanent_history,
+        ) = update_history(
+            html,
+            permanent_history_path,
+            Path(args.csv_path),
+            Path(args.excel_path),
+            Path(args.graph_path),
+            date=target_date,
+        )
+
     except Exception as exc:  # noqa: BLE001
-        print(f"Failed to update history: {exc}")
+        print(
+            f"Failed to update generated outputs: "
+            f"{exc}"
+        )
         return 1
 
     if not args.quiet:
-        print(f"Recorded Kerala gold rate {new_entry.price:.2f} for {new_entry.date.isoformat()}.")
-        print(f"CSV file: {os.path.abspath(args.csv_path)}")
-        print(f"Excel file: {os.path.abspath(args.excel_path)}")
-        print(f"Graph: {os.path.abspath(args.graph_path)}")
-    return 0
+        if used_permanent_history:
+            print(
+                f"Loaded {observation_count} permanent "
+                "historical observations."
+            )
+            print(
+                "Permanent history was read from: "
+                f"{permanent_history_path.resolve()}"
+            )
+        else:
+            print(
+                "Permanent history was unavailable or "
+                "empty; used the existing simplified "
+                "CSV as a fallback."
+            )
+            print(
+                f"Fallback records loaded: "
+                f"{observation_count}"
+            )
 
+        if skipped_count:
+            print(
+                f"Skipped malformed permanent-history "
+                f"rows: {skipped_count}"
+            )
+
+        print(
+            f"Prepared {daily_count} daily "
+            "chart records."
+        )
+
+        print(
+            f"Recorded Kerala gold rate "
+            f"{new_entry.price:.2f} for "
+            f"{new_entry.date.isoformat()}."
+        )
+
+        print(
+            f"CSV file: "
+            f"{os.path.abspath(args.csv_path)}"
+        )
+
+        print(
+            f"Excel file: "
+            f"{os.path.abspath(args.excel_path)}"
+        )
+
+        print(
+            f"Graph: "
+            f"{os.path.abspath(args.graph_path)}"
+        )
+
+    return 0
 
 if __name__ == "__main__":
     raise SystemExit(main())
