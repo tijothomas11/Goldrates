@@ -58,6 +58,26 @@ class HistoryParserTests(unittest.TestCase):
         )
         self.assertEqual(records[3].price, 13100)
 
+    def test_malformed_price_markup(self):
+        html = """
+        <table>
+          <tr>
+            <td><span class="kg2">9-Jul-20</span></td>
+            <td><span class="kg2"4575</span></td>
+          </tr>
+        </table>
+        """
+
+        records = parse_history_table(html)
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(
+            records[0].date,
+            dt.date(2020, 7, 9),
+        )
+        self.assertIsNone(records[0].session)
+        self.assertEqual(records[0].price, 4575)
+
 
 if __name__ == "__main__":
     unittest.main()
