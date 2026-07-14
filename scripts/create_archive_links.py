@@ -5,7 +5,8 @@ import datetime as dt
 from pathlib import Path
 
 
-OUTPUT_PATH = Path("archive_links.csv")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+OUTPUT_PATH = PROJECT_ROOT / "archive_links.csv"
 
 MONTH_NAMES = [
     "january",

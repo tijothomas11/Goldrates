@@ -1,7 +1,7 @@
 KeralaGold Backfill Validation Report
 =====================================
-Generated: 2026-07-14T17:52:25.250436+00:00
-Input: data/gold_rates_history.csv
+Generated: 2026-07-14T19:01:33.424066+00:00
+Input: /workspaces/Goldrates/data/gold_rates_history.csv
 CSV records: 6310
 Parsed records: 6310
 Date range: 2009-11-01 to 2026-07-14

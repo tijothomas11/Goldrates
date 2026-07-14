@@ -35,13 +35,11 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 
-SOURCE_PATH = Path(
-    "data/gold_rates_full_backfill.csv"
-)
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DATA_DIR = PROJECT_ROOT / "data"
 
-DESTINATION_PATH = Path(
-    "data/gold_rates_history.csv"
-)
+SOURCE_PATH = DATA_DIR / "gold_rates_full_backfill.csv"
+DESTINATION_PATH = DATA_DIR / "gold_rates_history.csv"
 
 EXPECTED_FIELDS = [
     "date",

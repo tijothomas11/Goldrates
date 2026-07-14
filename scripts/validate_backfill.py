@@ -22,21 +22,13 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 
-BACKFILL_PATH = Path(
-    "data/gold_rates_history.csv"
-)
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DATA_DIR = PROJECT_ROOT / "data"
 
-PROGRESS_PATH = Path(
-    "data/gold_rates_backfill_progress.csv"
-)
-
-ERROR_LOG_PATH = Path(
-    "data/gold_rates_backfill_errors.csv"
-)
-
-REPORT_PATH = Path(
-    "data/gold_rates_validation_report.txt"
-)
+BACKFILL_PATH = DATA_DIR / "gold_rates_history.csv"
+PROGRESS_PATH = DATA_DIR / "gold_rates_backfill_progress.csv"
+ERROR_LOG_PATH = DATA_DIR / "gold_rates_backfill_errors.csv"
+REPORT_PATH = DATA_DIR / "gold_rates_validation_report.txt"
 
 
 EXPECTED_FIELDS = [

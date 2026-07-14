@@ -35,19 +35,13 @@ import urllib.error
 from goldrate_tracker import fetch_html, parse_history_table
 
 
-ARCHIVE_LINKS_PATH = Path("archive_links.csv")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DATA_DIR = PROJECT_ROOT / "data"
 
-OUTPUT_PATH = Path(
-    "data/gold_rates_full_backfill.csv"
-)
-
-PROGRESS_PATH = Path(
-    "data/gold_rates_backfill_progress.csv"
-)
-
-ERROR_LOG_PATH = Path(
-    "data/gold_rates_backfill_errors.csv"
-)
+ARCHIVE_LINKS_PATH = PROJECT_ROOT / "archive_links.csv"
+OUTPUT_PATH = DATA_DIR / "gold_rates_full_backfill.csv"
+PROGRESS_PATH = DATA_DIR / "gold_rates_backfill_progress.csv"
+ERROR_LOG_PATH = DATA_DIR / "gold_rates_backfill_errors.csv"
 
 # Delay after each webpage request.
 REQUEST_DELAY_SECONDS = 0.75
