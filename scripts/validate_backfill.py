@@ -1085,10 +1085,16 @@ def main() -> int:
     print(f"Errors: {len(errors)}")
     print(f"Warnings: {len(warnings)}")
 
-    print(
-        "Completed archive months: "
-        f"{len(completed_months)} / 200"
-    )
+    if progress["exists"]:
+        print(
+            "Completed archive months: "
+            f"{len(completed_months)} / 200"
+        )
+    else:
+        print(
+            "Archive progress: not checked "
+            "(temporary progress file not present)"
+        )
 
     print(
         "Non-zero gram/pavan differences: "
