@@ -6,5 +6,6 @@ __pycache__/
 node_modules/
 .env
 
+!data/gold_rates_yearly.csv
 # Keep the permanent historical dataset in GitHub.
 !data/gold_rates_history.csv
