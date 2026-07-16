@@ -960,12 +960,12 @@ def main(argv: List[str] | None = None) -> int:
     # separately from the permanent historical dataset.
     live_records = parse_history_table(html)
 
-    detailed_csv_path = Path(
-        "gold_rates_detailed.csv"
+    live_page_csv_path = Path(
+        "gold_rates_live_page.csv"
     )
 
     save_detailed_history_csv(
-        detailed_csv_path,
+        live_page_csv_path,
         live_records,
     )
 
@@ -975,8 +975,8 @@ def main(argv: List[str] | None = None) -> int:
             "historical observations."
         )
         print(
-            "Detailed live-page CSV: "
-            f"{detailed_csv_path.resolve()}"
+            "Live-page CSV: "
+            f"{live_page_csv_path.resolve()}"
         )
 
     try:
