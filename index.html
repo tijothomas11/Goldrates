@@ -12,6 +12,144 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
   <style>
+    .downloads-menu {
+      position: relative;
+    }
+
+    .downloads-menu summary {
+      display: inline-flex;
+      min-height: 36px;
+      padding: 8px 14px;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      color: #444;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      list-style: none;
+      user-select: none;
+    }
+
+    .downloads-menu summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .downloads-menu summary::before {
+      content: "↓";
+      color: var(--gold-dark);
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .downloads-menu summary::after {
+      content: "▾";
+      margin-left: 2px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .downloads-menu[open] summary {
+      border-color: var(--gold);
+      background: #fff9e7;
+    }
+
+    .downloads-menu[open] summary::after {
+      content: "▴";
+    }
+
+    .downloads-panel {
+      position: absolute;
+      z-index: 20;
+      top: calc(100% + 8px);
+      right: 0;
+      width: 245px;
+      padding: 7px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14);
+    }
+
+    .downloads-panel a {
+      display: grid;
+      grid-template-columns: 54px 1fr;
+      gap: 10px;
+      padding: 11px;
+      align-items: center;
+      border-radius: 7px;
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .downloads-panel a:hover {
+      background: #fff9e7;
+    }
+
+    .download-type {
+      display: inline-flex;
+      min-height: 28px;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fafafa;
+      color: var(--gold-dark);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .download-description {
+      color: #555;
+      font-size: 13px;
+    }
+    .custom-range-controls {
+      display: flex;
+      gap: 10px;
+      align-items: end;
+      margin-bottom: 18px;
+      padding: 14px;
+      background: #fafafa;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      flex-wrap: wrap;
+    }
+
+    .custom-range-controls[hidden] {
+      display: none;
+    }
+
+    .custom-range-controls label {
+      display: flex;
+      gap: 5px;
+      flex-direction: column;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .custom-range-controls input {
+      min-height: 36px;
+      padding: 7px 9px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+    }
+
+    .custom-range-controls input:focus {
+      border-color: var(--gold);
+      outline: 2px solid rgba(212, 160, 23, 0.18);
+    }
+
+    .custom-range-error {
+      align-self: center;
+      color: var(--red);
+      font-size: 13px;
+    }
     :root {
       --gold: #d4a017;
       --gold-dark: #a87900;
@@ -68,7 +206,7 @@
 
     .card {
       padding: 22px;
-      overflow: hidden;
+      overflow: visible;
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 14px;
@@ -203,26 +341,42 @@
       font-size: 13px;
       text-align: center;
     }
-
+    
     .static-section {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      justify-content: center;
       margin-top: 24px;
       padding-top: 20px;
       border-top: 1px solid var(--border);
+      flex-wrap: wrap;
     }
 
-    details summary {
-      color: #555;
-      cursor: pointer;
-      font-weight: 600;
+    .static-chart-note {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
     }
 
-    .static-chart {
-      display: block;
-      width: 100%;
-      height: auto;
-      margin-top: 16px;
+    .static-chart-link {
+      display: inline-flex;
+      min-height: 36px;
+      padding: 8px 14px;
+      align-items: center;
+      justify-content: center;
       border: 1px solid var(--border);
-      border-radius: 10px;
+      border-radius: 8px;
+      background: #fff;
+      color: #444;
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+    .static-chart-link:hover {
+      border-color: var(--gold);
+      background: #fff9e7;
     }
 
     footer {
@@ -233,6 +387,20 @@
     }
 
     @media (max-width: 720px) {
+      .downloads-menu {
+        width: 100%;
+      }
+
+      .downloads-menu summary {
+        width: 100%;
+        justify-content: center;
+      }
+
+      .downloads-panel {
+        right: auto;
+        left: 0;
+        width: 100%;
+      }
       body {
         padding: 20px 10px;
       }
@@ -287,44 +455,69 @@
           class="range-buttons"
           aria-label="Chart date range"
         >
-          <button type="button" data-range="1m">
-            1M
-          </button>
-
-          <button type="button" data-range="6m">
-            6M
-          </button>
-
-          <button type="button" data-range="1y">
-            1Y
-          </button>
-
-          <button type="button" data-range="5y">
-            5Y
-          </button>
-
-          <button
-            type="button"
-            data-range="all"
-            class="active"
-          >
+          <button type="button" data-range="1m">1M</button>
+          <button type="button" data-range="6m">6M</button>
+          <button type="button" data-range="1y">1Y</button>
+          <button type="button" data-range="5y">5Y </button>
+          <button type="button" data-range="all" class="active">
             All
           </button>
+          <button type="button" id="custom-range-button">
+            Custom
+          </button>
         </div>
+        <div id="custom-range-controls" class="custom-range-controls" hidden>
+        <label>
+          From
+          <input type="date" id="custom-start-date">
+        </label>
 
-        <div class="download-links">
-          <a href="gold_rates.csv" download>
-            CSV
-          </a>
+        <label>
+          To
+          <input type="date" id="custom-end-date">
+        </label>
 
-          <a href="gold_rates.xlsx" download>
-            Excel
-          </a>
+        <button type="button" id="apply-custom-range">
+          Apply
+        </button>
 
-          <a href="gold_rates.svg" download>
-            Static SVG
-          </a>
-        </div>
+        <button type="button" id="reset-custom-range">
+          Reset
+        </button>
+
+        <span
+          id="custom-range-error"
+          class="custom-range-error"
+          role="alert"
+        ></span>
+      </div>
+
+        <details class="downloads-menu">
+          <summary>Downloads</summary>
+
+          <div class="downloads-panel">
+    <a href="gold_rates.csv" download>
+      <span class="download-type">CSV</span>
+      <span class="download-description">
+        Daily price data
+      </span>
+    </a>
+
+    <a href="gold_rates.xlsx" download>
+      <span class="download-type">Excel</span>
+      <span class="download-description">
+        Spreadsheet workbook
+      </span>
+    </a>
+
+    <a href="gold_rates.svg" download>
+      <span class="download-type">SVG</span>
+      <span class="download-description">
+        Static chart image
+      </span>
+    </a>
+  </div>
+        </details>
       </div>
 
       <div
@@ -406,13 +599,16 @@
       <p id="range-summary" class="range-summary"></p>
 
       <div class="static-section">
-        <details>
-          <summary>
-            View static SVG chart
-          </summary>
+        <p class="static-chart-note">
+          Prefer a non-interactive version?
+        </p>
 
-          gold_rates.svg
-        </details>
+        <a
+          class="static-chart-link"
+          href="static-chart.html"
+        >
+          Open static SVG chart
+        </a>
       </div>
     </section>
 
@@ -443,6 +639,27 @@
 
     const rangeButtons =
       document.querySelectorAll("[data-range]");
+
+    const customRangeButton =
+      document.getElementById("custom-range-button");
+
+    const customRangeControls =
+      document.getElementById("custom-range-controls");
+
+    const customStartDate =
+      document.getElementById("custom-start-date");
+
+    const customEndDate =
+      document.getElementById("custom-end-date");
+
+    const applyCustomRangeButton =
+      document.getElementById("apply-custom-range");
+
+    const resetCustomRangeButton =
+      document.getElementById("reset-custom-range");
+
+    const customRangeError =
+      document.getElementById("custom-range-error");
 
     let allRecords = [];
     let chart = null;
@@ -547,6 +764,52 @@
         record =>
           record.timestamp >= startTimestamp
       );
+    }
+
+    function applyCustomRange() {
+      customRangeError.textContent = "";
+
+      const startText = customStartDate.value;
+      const endText = customEndDate.value;
+
+      if (!startText || !endText) {
+        customRangeError.textContent =
+          "Select both a start date and an end date.";
+        return;
+      }
+
+      const startTimestamp =
+        Date.parse(`${startText}T00:00:00`);
+
+      const endTimestamp =
+        Date.parse(`${endText}T23:59:59`);
+
+      if (startTimestamp > endTimestamp) {
+        customRangeError.textContent =
+          "The start date must not be after the end date.";
+        return;
+      }
+
+      const records = allRecords.filter(
+        record =>
+          record.timestamp >= startTimestamp &&
+          record.timestamp <= endTimestamp
+      );
+
+      if (!records.length) {
+        customRangeError.textContent =
+          "No gold-rate records exist in that range.";
+        return;
+      }
+
+      rangeButtons.forEach(button => {
+        button.classList.remove("active");
+      });
+
+      customRangeButton.classList.add("active");
+
+      buildChart(records);
+      updateSummary(records);
     }
 
     function formatPrice(value) {
@@ -747,6 +1010,9 @@
         return;
       }
 
+      errorElement.textContent = "";
+      errorElement.classList.remove("visible");
+
       rangeButtons.forEach(button => {
         button.classList.toggle(
           "active",
@@ -812,9 +1078,67 @@
 
     rangeButtons.forEach(button => {
       button.addEventListener("click", () => {
+        customRangeButton.classList.remove("active");
+        customRangeControls.hidden = true;
+        customRangeError.textContent = "";
+
         selectRange(button.dataset.range);
       });
     });
+
+    customRangeButton.addEventListener("click", () => {
+      const opening = customRangeControls.hidden;
+
+      customRangeControls.hidden = !opening;
+
+      if (!opening) {
+        customRangeButton.classList.remove("active");
+        return;
+      }
+
+      rangeButtons.forEach(button => {
+        button.classList.remove("active");
+      });
+
+      customRangeButton.classList.add("active");
+
+      if (allRecords.length) {
+        if (!customStartDate.value) {
+          customStartDate.value =
+            allRecords[0].date;
+        }
+
+        if (!customEndDate.value) {
+          customEndDate.value =
+            allRecords[allRecords.length - 1].date;
+        }
+      }
+    });
+
+    applyCustomRangeButton.addEventListener(
+      "click",
+      applyCustomRange
+    );
+
+    resetCustomRangeButton.addEventListener(
+      "click",
+      () => {
+        customRangeError.textContent = "";
+
+        if (allRecords.length) {
+          customStartDate.value =
+            allRecords[0].date;
+
+          customEndDate.value =
+            allRecords[allRecords.length - 1].date;
+        }
+
+        customRangeButton.classList.remove("active");
+        customRangeControls.hidden = true;
+
+        selectRange("all");
+      }
+    );
 
     loadData();
   </script>
