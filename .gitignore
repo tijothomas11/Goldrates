@@ -9,3 +9,6 @@ node_modules/
 !data/gold_rates_yearly.csv
 # Keep the permanent historical dataset in GitHub.
 !data/gold_rates_history.csv
+!gold_rates.csv
+!gold_rates.xlsx
+!gold_rates.svg
