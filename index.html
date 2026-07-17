@@ -206,7 +206,7 @@
 
     .card {
       padding: 22px;
-      overflow: visible;
+      overflow: hidden;
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 14px;
@@ -621,6 +621,7 @@
     "use strict";
 
     const CSV_PATH = "gold_rates.csv";
+    const YEARLY_CSV_PATH = "data/gold_rates_yearly.csv";
 
     const loadingElement =
       document.getElementById("loading");
@@ -662,6 +663,7 @@
       document.getElementById("custom-range-error");
 
     let allRecords = [];
+    let yearlyRecords = [];
     let chart = null;
 
     const currencyFormatter =
@@ -717,6 +719,63 @@
           date: dateText,
           timestamp,
           price,
+        });
+      }
+
+      records.sort(
+        (left, right) =>
+          left.timestamp - right.timestamp
+      );
+
+      return records;
+    }
+    function parseYearlyCsv(text) {
+      const lines = text
+        .split(/\r?\n/)
+        .filter(line => line.trim());
+
+      if (lines.length < 2) {
+        return [];
+      }
+
+      const records = [];
+
+      for (const line of lines.slice(1)) {
+        const columns = line.split(",");
+
+        if (columns.length < 5) {
+          continue;
+        }
+
+        const yearText = columns[0].trim();
+        const dateText = columns[1].trim();
+        const pavanText = columns[2].trim();
+        const gramText = columns[3].trim();
+
+        const timestamp =
+          Date.parse(`${dateText}T00:00:00`);
+
+        const pavanPrice =
+          Number(pavanText.replace(/,/g, ""));
+
+        const gramPrice =
+          Number(gramText.replace(/,/g, ""));
+
+        if (
+          !Number.isFinite(timestamp) ||
+          !Number.isFinite(pavanPrice) ||
+          !Number.isFinite(gramPrice)
+        ) {
+          continue;
+        }
+
+        records.push({
+          year: yearText,
+          date: dateText,
+          timestamp,
+          price: gramPrice,
+          pavanPrice,
+          historicalReference: true,
         });
       }
 
@@ -815,6 +874,14 @@
     function formatPrice(value) {
       return currencyFormatter.format(value);
     }
+    function formatHistoricalPrice(value) {
+      return new Intl.NumberFormat("en-IN", {
+        style: "currency",
+        currency: "INR",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(value);
+    }
 
     function updateSummary(records) {
       const prices =
@@ -865,16 +932,86 @@
         `${records.length.toLocaleString()} daily records`;
     }
 
-    function buildChart(records) {
-      const points = records.map(record => ({
+    function buildChart(
+      records,
+      historicalRecords = []
+    ) {
+      const dailyPoints = records.map(record => ({
         x: record.timestamp,
         y: record.price,
         date: record.date,
       }));
-      const firstTimestamp = records[0].timestamp;
 
-      const lastTimestamp =
-        records[records.length - 1].timestamp;
+      const historicalPoints =
+        historicalRecords.map(record => ({
+          x: record.timestamp,
+          y: record.price,
+          date: record.date,
+          year: record.year,
+          pavanPrice: record.pavanPrice,
+        }));
+
+      const allTimestamps = [
+        ...historicalPoints.map(point => point.x),
+        ...dailyPoints.map(point => point.x),
+      ];
+
+      if (!allTimestamps.length) {
+        showError(
+          "No records are available for this chart."
+        );
+        return;
+      }
+
+      const firstTimestamp = Math.min(
+        ...allTimestamps
+      );
+
+      const lastTimestamp = Math.max(
+        ...allTimestamps
+      );
+
+      const datasets = [];
+
+      if (historicalPoints.length) {
+        datasets.push({
+          label: "Historical March 31 reference",
+          data: historicalPoints,
+          parsing: false,
+          borderColor: "#9b7a17",
+          backgroundColor: "#9b7a17",
+          borderWidth: 1.5,
+          borderDash: [6, 5],
+          pointRadius: 4,
+          pointHoverRadius: 7,
+          pointBackgroundColor: "#fff",
+          pointBorderColor: "#9b7a17",
+          pointBorderWidth: 2,
+          fill: false,
+          tension: 0,
+          yAxisID: "y",
+        });
+      }
+
+      if (dailyPoints.length) {
+        datasets.push({
+          label: "Detailed daily 22K rate",
+          data: dailyPoints,
+          parsing: false,
+          borderColor: "#d4a017",
+          backgroundColor:
+            "rgba(212, 160, 23, 0.15)",
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: "#e65100",
+          pointHoverBorderColor: "#ffffff",
+          pointHoverBorderWidth: 2,
+          fill: true,
+          tension: 0,
+          yAxisID: "y",
+        });
+      }
 
       const context =
         document
@@ -889,24 +1026,7 @@
         type: "line",
 
         data: {
-          datasets: [
-            {
-              label: "22K gold rate per gram",
-              data: points,
-              parsing: false,
-              borderColor: "#d4a017",
-              backgroundColor:
-                "rgba(212, 160, 23, 0.15)",
-              borderWidth: 2,
-              pointRadius: 0,
-              pointHoverRadius: 5,
-              pointHoverBackgroundColor: "#e65100",
-              pointHoverBorderColor: "#ffffff",
-              pointHoverBorderWidth: 2,
-              fill: true,
-              tension: 0.08,
-            },
-          ],
+          datasets,
         },
 
         options: {
@@ -914,6 +1034,7 @@
           maintainAspectRatio: false,
           animation: false,
           normalized: true,
+
           interaction: {
             mode: "nearest",
             intersect: false,
@@ -921,7 +1042,8 @@
 
           plugins: {
             legend: {
-              display: false,
+              display: historicalPoints.length > 0,
+              position: "bottom",
             },
 
             decimation: {
@@ -943,6 +1065,21 @@
                 },
 
                 label(context) {
+                  const raw = context.raw;
+
+                  if (
+                    context.dataset.label ===
+                    "Historical March 31 reference"
+                  ) {
+                    return [
+                      "Calculated 22K per gram: " +
+                        formatHistoricalPrice(context.parsed.y),
+                      "Published pavan: " +
+                        formatHistoricalPrice(raw.pavanPrice),
+                      "Historical March 31 reference",
+                    ];
+                  }
+
                   return (
                     "22K per gram: " +
                     formatPrice(context.parsed.y)
@@ -965,7 +1102,7 @@
               },
 
               ticks: {
-                maxTicksLimit: 8,
+                maxTicksLimit: 10,
 
                 callback(value) {
                   return new Intl.DateTimeFormat(
@@ -1020,6 +1157,43 @@
         );
       });
 
+      if (range === "all") {
+        const firstDailyTimestamp =
+          allRecords[0].timestamp;
+
+        const earlierYearlyRecords =
+          yearlyRecords.filter(
+            record =>
+              record.timestamp <
+              firstDailyTimestamp
+          );
+
+        buildChart(
+          records,
+          earlierYearlyRecords
+        );
+
+        updateSummary(records);
+
+        rangeSummaryElement.textContent =
+          `${dateFormatter.format(
+            new Date(
+              earlierYearlyRecords[0].timestamp
+            )
+          )} – ${dateFormatter.format(
+            new Date(
+              records[
+                records.length - 1
+              ].timestamp
+            )
+          )} · ` +
+          `${earlierYearlyRecords.length} historical ` +
+          `reference points · ` +
+          `${records.length.toLocaleString()} daily records`;
+
+        return;
+      }
+
       buildChart(records);
       updateSummary(records);
     }
@@ -1035,26 +1209,62 @@
 
     async function loadData() {
       try {
-        const response = await fetch(
-          CSV_PATH,
-          {
-            cache: "no-store",
-          }
-        );
+        const [
+          dailyResponse,
+          yearlyResponse,
+        ] = await Promise.all([
+          fetch(
+            CSV_PATH,
+            {
+              cache: "no-store",
+            }
+          ),
 
-        if (!response.ok) {
+          fetch(
+            YEARLY_CSV_PATH,
+            {
+              cache: "no-store",
+            }
+          ),
+        ]);
+
+        if (!dailyResponse.ok) {
           throw new Error(
-            `HTTP ${response.status}`
+            `Daily CSV HTTP ${dailyResponse.status}`
           );
         }
 
-        const csvText = await response.text();
+        if (!yearlyResponse.ok) {
+          throw new Error(
+            `Yearly CSV HTTP ${yearlyResponse.status}`
+          );
+        }
 
-        allRecords = parseCsv(csvText);
+        const [
+          dailyCsvText,
+          yearlyCsvText,
+        ] = await Promise.all([
+          dailyResponse.text(),
+          yearlyResponse.text(),
+        ]);
+
+        allRecords = parseCsv(
+          dailyCsvText
+        );
+
+        yearlyRecords = parseYearlyCsv(
+          yearlyCsvText
+        );
 
         if (!allRecords.length) {
           throw new Error(
             "The CSV did not contain valid records."
+          );
+        }
+        
+        if (!yearlyRecords.length) {
+          throw new Error(
+            "The yearly CSV did not contain valid records."
           );
         }
 
