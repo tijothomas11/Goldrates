@@ -1098,11 +1098,22 @@
               offset: false,
 
               grid: {
-                display: false,
+                display: true,
+                drawOnChartArea: false,
+                drawTicks: true,
+                tickLength: 7,
+                tickColor: "#999999",
+                color: "#999999",
+              },
+
+              border: {
+                display: true,
+                color: "#cccccc",
               },
 
               ticks: {
                 maxTicksLimit: 10,
+                padding: 6,
 
                 callback(value) {
                   return new Intl.DateTimeFormat(
