@@ -649,9 +649,30 @@ def generate_svg(svg_path: Path, entries: List[GoldRateEntry]) -> None:
     other_indices = [i for i in range(n) if i not in special_indices]
     other_label_count = max(max_price_labels - len(special_indices), 0)
     other_label_set = set(_thin_indices(len(other_indices), other_label_count)) if other_label_count > 0 else set()
-    labeled = set(special_indices)
+    # The summary box already displays the current and maximum
+    # values. Avoid placing duplicate labels near the crowded
+    # right edge of the chart.
+    labeled = {
+        index
+        for index in special_indices
+        if index not in {
+            current_idx,
+            max_idx,
+        }
+    }
+
+    # Avoid ordinary price labels near the latest observations.
+    # The Summary box already communicates the current value.
+    right_edge_limit = n - max(
+        30,
+        int(n * 0.03),
+    )
+
     for j, i in enumerate(other_indices):
-        if j in other_label_set:
+        if (
+            j in other_label_set
+            and i < right_edge_limit
+        ):
             labeled.add(i)
 
     label_color: dict[int, str] = {}
@@ -683,7 +704,7 @@ def generate_svg(svg_path: Path, entries: List[GoldRateEntry]) -> None:
     cx, cy = points[current_idx]
     marker_svg += f'<circle cx="{cx:.2f}" cy="{cy:.2f}" r="6" fill="#e65100" stroke="#fff" stroke-width="2"/>'
 
-    stats_x = chart_right - 175
+    stats_x = chart_left + 15
     stats_y = chart_top + 10
     stats_w = 165
     stats_h = 108
