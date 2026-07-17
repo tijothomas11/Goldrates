@@ -719,8 +719,56 @@ def generate_svg(svg_path: Path, entries: List[GoldRateEntry]) -> None:
     stats_svg += f'<line x1="{stats_x + 10}" y1="{stats_y + 23}" x2="{stats_x + stats_w - 10}" y2="{stats_y + 23}" stroke="#eee" stroke-width="1"/>'
     for j, (label, value, color) in enumerate(stats_lines):
         ly = stats_y + 42 + j * 16
-        stats_svg += f'<text x="{stats_x + 12}" y="{ly}" font-size="12" fill="#888">{label}</text>'
-        stats_svg += f'<text x="{stats_x + stats_w - 12}" y="{ly}" font-size="12" text-anchor="end" fill="{color}" font-weight="bold">{value}</text>'
+        marker_x = stats_x + 15
+        label_x = stats_x + 28
+
+        if label == "Current":
+            stats_svg += (
+                f'<circle '
+                f'cx="{marker_x}" '
+                f'cy="{ly - 4}" '
+                f'r="4" '
+                f'fill="#e65100" '
+                f'stroke="#ffffff" '
+                f'stroke-width="1"/>'
+            )
+
+        elif label in {"Minimum", "Maximum"}:
+            stats_svg += (
+                f'<rect '
+                f'x="{marker_x - 4}" '
+                f'y="{ly - 8}" '
+                f'width="8" '
+                f'height="8" '
+                f'fill="{color}" '
+                f'stroke="#ffffff" '
+                f'stroke-width="1" '
+                f'transform="rotate('
+                f'45 {marker_x} {ly - 4}'
+                f')"/>'
+            )
+
+        stats_svg += (
+            f'<text '
+            f'x="{label_x}" '
+            f'y="{ly}" '
+            f'font-size="12" '
+            f'fill="#888">'
+            f'{label}'
+            f'</text>'
+        )
+
+        stats_svg += (
+            f'<text '
+            f'x="{stats_x + stats_w - 12}" '
+            f'y="{ly}" '
+            f'font-size="12" '
+            f'text-anchor="end" '
+            f'fill="{color}" '
+            f'font-weight="bold">'
+            f'{value}'
+            f'</text>'
+        )
 
     if n == 1:
         subtitle = entries[0].date.isoformat()
