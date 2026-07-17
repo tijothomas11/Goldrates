@@ -1,0 +1,81 @@
+# Name shown in the GitHub Actions tab.
+name: Update Kerala gold rates
+
+# Allow the workflow to be started manually from GitHub.
+on:
+  workflow_dispatch:
+
+# Permit this workflow to commit updated files back to the repository.
+permissions:
+  contents: write
+
+# Prevent two gold-rate updates from running at the same time.
+concurrency:
+  group: update-kerala-gold-rates
+  cancel-in-progress: false
+
+jobs:
+  update:
+    # Use a fresh Ubuntu virtual machine provided by GitHub.
+    runs-on: ubuntu-latest
+
+    steps:
+      # Download the repository files into the virtual machine.
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Install the Python version used by this project.
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Run the automated tests before touching permanent data.
+      # The workflow stops here if any test fails.
+      - name: Run automated tests
+        run: python -m unittest discover -s tests -v
+
+      # Fetch the latest gram and pavan rates.
+      #
+      # The updater:
+      # 1. compares live observations with permanent history;
+      # 2. rejects changes to existing historical prices;
+      # 3. adds only genuinely new observations;
+      # 4. creates a local backup before writing;
+      # 5. validates the updated permanent history;
+      # 6. regenerates the public CSV, Excel and SVG files.
+      - name: Apply safe history update
+        run: python scripts/apply_history_update.py --apply
+
+      # Display the files changed by the updater in the workflow log.
+      # This step is informational and does not stage or commit anything.
+      - name: Show changed files
+        run: git status --short
+
+      # Configure Git, stage the intended public files, and commit them.
+      - name: Commit updated rates
+        shell: bash
+        run: |
+          # Identify automated commits as coming from GitHub Actions.
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Stage only the files that should be published.
+          # Do not use "git add ." because that could include unintended files.
+          git add \
+            data/gold_rates_history.csv \
+            data/gold_rates_validation_report.txt \
+            gold_rates.csv \
+            gold_rates.xlsx \
+            gold_rates.svg
+
+          # Exit successfully when no new rates or generated changes exist.
+          # This prevents empty commits when the history is already current.
+          if git diff --cached --quiet; then
+            echo "Gold-rate history is already up to date."
+            exit 0
+          fi
+
+          # Create and push the automated update commit.
+          git commit -m "Update Kerala gold rates"
+          git push
