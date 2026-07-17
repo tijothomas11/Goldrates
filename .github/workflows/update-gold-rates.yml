@@ -1,9 +1,13 @@
 # Name shown in the GitHub Actions tab.
 name: Update Kerala gold rates
 
-# Allow the workflow to be started manually from GitHub.
 on:
+  # Allow the workflow to be started manually.
   workflow_dispatch:
+
+  # Check for new Kerala gold rates once every day.
+  schedule:
+    - cron: "30 12 * * *"
 
 # Permit this workflow to commit updated files back to the repository.
 permissions:
