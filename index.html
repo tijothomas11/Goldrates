@@ -1101,19 +1101,24 @@
                 display: true,
                 drawOnChartArea: false,
                 drawTicks: true,
-                tickLength: 7,
-                tickColor: "#999999",
-                color: "#999999",
+                tickLength: window.innerWidth <= 720 ? 10 : 7,
+                tickColor: "#777777",
+                color: "#777777",
+                lineWidth: 1.5,
               },
 
               border: {
                 display: true,
-                color: "#cccccc",
+                color: "#aaaaaa",
+                width: 1,
               },
 
               ticks: {
-                maxTicksLimit: 10,
-                padding: 6,
+                maxTicksLimit: window.innerWidth <= 720 ? 5 : 10,
+                autoSkip: true,
+                autoSkipPadding: 12,
+                padding: 7,
+                color: "#555555",
 
                 callback(value) {
                   return new Intl.DateTimeFormat(
