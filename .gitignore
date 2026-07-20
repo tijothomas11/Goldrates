@@ -12,3 +12,4 @@ node_modules/
 !gold_rates.csv
 !gold_rates.xlsx
 !gold_rates.svg
+!data/international_gold_spot.csv
