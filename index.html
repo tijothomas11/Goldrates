@@ -622,6 +622,8 @@
 
     const CSV_PATH = "gold_rates.csv";
     const YEARLY_CSV_PATH = "data/gold_rates_yearly.csv";
+    const INTERNATIONAL_CSV_PATH =
+      "data/international_gold_spot.csv";
 
     const loadingElement =
       document.getElementById("loading");
@@ -667,6 +669,7 @@
 
     let allRecords = [];
     let yearlyRecords = [];
+    let internationalRecords = [];
     let chart = null;
 
     const currencyFormatter =
@@ -779,6 +782,83 @@
           price: gramPrice,
           pavanPrice,
           historicalReference: true,
+        });
+      }
+
+      records.sort(
+        (left, right) =>
+          left.timestamp - right.timestamp
+      );
+
+      return records;
+    }
+
+    function parseInternationalCsv(text) {
+      const lines = text
+        .split(/\r?\n/)
+        .filter(line => line.trim());
+
+      if (lines.length < 2) {
+        return [];
+      }
+
+      const records = [];
+
+      // Skip the first line because it contains the column names.
+      for (const line of lines.slice(1)) {
+        const columns = line.split(",");
+
+        if (columns.length !== 5) {
+          continue;
+        }
+
+        const timestampText =
+          columns[0].trim();
+
+        const dateText =
+          columns[1].trim();
+
+        const ouncePriceText =
+          columns[2].trim();
+
+        const gramPriceText =
+          columns[3].trim();
+
+        const source =
+          columns[4].trim();
+
+        const timestamp =
+          Date.parse(timestampText);
+
+        const usdPerOunce =
+          Number(
+            ouncePriceText.replace(/,/g, "")
+          );
+
+        const usdPerGram =
+          Number(
+            gramPriceText.replace(/,/g, "")
+          );
+
+        if (
+          !Number.isFinite(timestamp) ||
+          !Number.isFinite(usdPerOunce) ||
+          !Number.isFinite(usdPerGram)
+        ) {
+          continue;
+        }
+
+        if (source !== "GoldPrice.org") {
+          continue;
+        }
+
+        records.push({
+          timestamp,
+          timestampText,
+          date: dateText,
+          usdPerOunce,
+          usdPerGram,
+          source,
         });
       }
 
@@ -1253,6 +1333,7 @@
         const [
           dailyResponse,
           yearlyResponse,
+          internationalResponse,
         ] = await Promise.all([
           fetch(
             CSV_PATH,
@@ -1263,6 +1344,13 @@
 
           fetch(
             YEARLY_CSV_PATH,
+            {
+              cache: "no-store",
+            }
+          ),
+
+          fetch(
+            INTERNATIONAL_CSV_PATH,
             {
               cache: "no-store",
             }
@@ -1281,12 +1369,21 @@
           );
         }
 
+        if (!internationalResponse.ok) {
+          throw new Error(
+            "International CSV HTTP " +
+            internationalResponse.status
+          );
+        }
+
         const [
           dailyCsvText,
           yearlyCsvText,
+          internationalCsvText,
         ] = await Promise.all([
           dailyResponse.text(),
           yearlyResponse.text(),
+          internationalResponse.text(),
         ]);
 
         allRecords = parseCsv(
@@ -1296,6 +1393,11 @@
         yearlyRecords = parseYearlyCsv(
           yearlyCsvText
         );
+
+        internationalRecords =
+          parseInternationalCsv(
+            internationalCsvText
+          );
 
         if (!allRecords.length) {
           throw new Error(
@@ -1308,6 +1410,27 @@
             "The yearly CSV did not contain valid records."
           );
         }
+
+        if (!internationalRecords.length) {
+          throw new Error(
+            "The international CSV did not " +
+            "contain valid records."
+          );
+        }
+
+        console.log(
+          "International gold records loaded:",
+          internationalRecords.length
+        );
+
+        console.log(
+          "International gold coverage:",
+          internationalRecords[0].date,
+          "to",
+          internationalRecords[
+            internationalRecords.length - 1
+          ].date
+        );
 
         loadingElement.classList.remove("visible");
         errorElement.classList.remove("visible");
