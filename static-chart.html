@@ -79,11 +79,20 @@
       box-shadow: 0 3px 18px rgba(0, 0, 0, 0.07);
     }
 
-    .chart-card object {
-      display: block;
+    .chart-scroll {
       width: 100%;
-      min-height: 600px;
-      border: 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+      overscroll-behavior-x: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .chart-card object {
+      
+      width: 900px;
+      min-width: 900px;
+      height: 500px;
+      
     }
 
     @media (max-width: 720px) {
@@ -115,15 +124,17 @@
     </div>
 
     <div class="chart-card">
-      <object
-        data="gold_rates.svg?v=5"
-        type="image/svg+xml"
-        aria-label="Static Kerala gold-rate history chart"
-      >
-        gold_rates.svg
-          Open the static SVG chart
-        </a>
-      </object>
+      <div class="chart-scroll"> 
+        <object
+          data="gold_rates.svg?v=5"
+          type="image/svg+xml"
+          aria-label="Static Kerala gold-rate history chart"
+        >
+          gold_rates.svg
+            Open the static SVG chart
+          </a>
+        </object>
+      </div>
     </div>
   </main>
 </body>
