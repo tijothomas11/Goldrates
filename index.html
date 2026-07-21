@@ -12,6 +12,55 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
   <style>
+    .international-comparison {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      justify-content: center;
+      margin: 0 0 18px;
+      padding: 11px 14px;
+      background: #f7fbff;
+      border: 1px solid #cfe3f5;
+      border-radius: 9px;
+      flex-wrap: wrap;
+    }
+
+    .international-comparison[hidden] {
+      display: none;
+    }
+
+    .international-comparison label {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      color: #333;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .international-comparison input {
+      width: 17px;
+      height: 17px;
+      margin: 0;
+      accent-color: #1565c0;
+      cursor: pointer;
+    }
+
+    .international-source {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .international-source a {
+      color: #1565c0;
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+    .international-source a:hover {
+      text-decoration: underline;
+    }
     .downloads-menu {
       position: relative;
     }
@@ -390,6 +439,10 @@
       .downloads-menu {
         width: 100%;
       }
+      .international-comparison {
+        align-items: flex-start;
+        flex-direction: column;
+      }
 
       .downloads-menu summary {
         width: 100%;
@@ -518,6 +571,34 @@
     </a>
   </div>
         </details>
+      </div>
+
+      <div
+        id="international-comparison"
+        class="international-comparison"
+        hidden
+      >
+        <label>
+          <input
+            type="checkbox"
+            id="international-comparison-checkbox"
+          >
+
+          <span>
+            Compare with international gold
+          </span>
+        </label>
+
+        <span class="international-source">
+          Data:
+          <a
+            href="https://goldprice.org/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            GoldPrice.org
+          </a>
+        </span>
       </div>
 
       <div
@@ -667,9 +748,23 @@
     const customRangeError =
       document.getElementById("custom-range-error");
 
+    const internationalComparison =
+      document.getElementById(
+        "international-comparison"
+      );
+
+    const internationalComparisonCheckbox =
+      document.getElementById(
+        "international-comparison-checkbox"
+      );
+
     let allRecords = [];
     let yearlyRecords = [];
     let internationalRecords = [];
+
+    let currentViewRecords = [];
+    let currentHistoricalRecords = [];
+
     let chart = null;
 
     const currencyFormatter =
@@ -677,6 +772,14 @@
         style: "currency",
         currency: "INR",
         maximumFractionDigits: 0,
+      });
+    
+    const usdFormatter =
+      new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
       });
 
     const dateFormatter =
@@ -908,6 +1011,16 @@
       );
     }
 
+    function setInternationalComparisonAvailability(
+      available
+    ) {
+      internationalComparison.hidden = !available;
+
+      if (!available) {
+        internationalComparisonCheckbox.checked = false;
+      }
+    }
+
     function applyCustomRange() {
       customRangeError.textContent = "";
 
@@ -944,15 +1057,218 @@
         return;
       }
 
+      const selectedRangeDays =
+        (
+          endTimestamp -
+          startTimestamp
+        ) / (
+          24 * 60 * 60 * 1000
+        );
+
+      const internationalOverlap =
+        internationalRecords.some(
+          record =>
+            record.timestamp >= startTimestamp &&
+            record.timestamp <= endTimestamp
+        );
+
+      setInternationalComparisonAvailability(
+        selectedRangeDays <= 31 &&
+        internationalOverlap
+      );
+
       rangeButtons.forEach(button => {
         button.classList.remove("active");
       });
 
       customRangeButton.classList.add("active");
 
-      buildChart(records);
-      updateSummary(records);
+      currentViewRecords = records;
+      currentHistoricalRecords = [];
+
+      renderCurrentView();
     }
+
+    function downsampleInternationalRecords(
+      records
+    ) {
+      if (records.length <= 2) {
+        return records;
+      }
+
+      const pointsPerDay = 10;
+
+      const recordsByDate =
+        new Map();
+
+      for (const record of records) {
+        const dateText =
+          new Date(record.timestamp)
+            .toISOString()
+            .slice(0, 10);
+
+        if (!recordsByDate.has(dateText)) {
+          recordsByDate.set(
+            dateText,
+            []
+          );
+        }
+
+        recordsByDate
+          .get(dateText)
+          .push(record);
+      }
+
+      const sampledRecords = [];
+
+      for (
+        const dailyRecords
+        of recordsByDate.values()
+      ) {
+        dailyRecords.sort(
+          (left, right) =>
+            left.timestamp -
+            right.timestamp
+        );
+
+        if (
+          dailyRecords.length <=
+          pointsPerDay
+        ) {
+          sampledRecords.push(
+            ...dailyRecords
+          );
+
+          continue;
+        }
+
+        // Select genuine observations distributed
+        // evenly from the first through the last
+        // available observation of the day.
+        for (
+          let pointIndex = 0;
+          pointIndex < pointsPerDay;
+          pointIndex += 1
+        ) {
+          const position =
+            pointIndex *
+            (
+              dailyRecords.length - 1
+            ) /
+            (
+              pointsPerDay - 1
+            );
+
+          const recordIndex =
+            Math.round(position);
+
+          sampledRecords.push(
+            dailyRecords[recordIndex]
+          );
+        }
+      }
+
+      sampledRecords.sort(
+        (left, right) =>
+          left.timestamp -
+          right.timestamp
+      );
+
+      return sampledRecords;
+    }
+
+    function getInternationalRecordsForRange(
+      records
+    ) {
+      if (!records.length) {
+        return [];
+      }
+
+      const startTimestamp =
+        records[0].timestamp;
+
+      const endTimestamp =
+        records[
+          records.length - 1
+        ].timestamp;
+
+      const overlappingRecords =
+        internationalRecords.filter(
+          record =>
+            record.timestamp >= startTimestamp &&
+            record.timestamp <= endTimestamp
+        );
+
+      const sampledRecords =
+        downsampleInternationalRecords(
+          overlappingRecords
+        );
+
+      console.log(
+        "International display points:",
+        overlappingRecords.length,
+        "source observations reduced to",
+        sampledRecords.length,
+        "display observations"
+      );
+
+      return sampledRecords;
+    }
+
+    function createIndexedPoints(
+      records,
+      valueSelector
+    ) {
+      if (!records.length) {
+        return [];
+      }
+
+      const firstValue =
+        valueSelector(records[0]);
+
+      if (
+        !Number.isFinite(firstValue) ||
+        firstValue <= 0
+      ) {
+        return [];
+      }
+
+      return records.map(record => {
+        const actualValue =
+          valueSelector(record);
+
+        return {
+          x: record.timestamp,
+          y: actualValue / firstValue * 100,
+          date: record.date,
+          actualValue,
+          source: record.source || "",
+          usdPerOunce:
+            record.usdPerOunce ?? null,
+          usdPerGram:
+            record.usdPerGram ?? null,
+        };
+      });
+    }
+
+
+    function renderCurrentView() {
+      const comparisonEnabled =
+        !internationalComparison.hidden &&
+        internationalComparisonCheckbox.checked;
+
+      buildChart(
+        currentViewRecords,
+        currentHistoricalRecords,
+        comparisonEnabled
+      );
+
+      updateSummary(
+        currentViewRecords
+      );
+    }
+
+
 
     function formatPrice(value) {
       return currencyFormatter.format(value);
@@ -1017,13 +1333,40 @@
 
     function buildChart(
       records,
-      historicalRecords = []
+      historicalRecords = [],
+      comparisonEnabled = false
     ) {
-      const dailyPoints = records.map(record => ({
-        x: record.timestamp,
-        y: record.price,
-        date: record.date,
-      }));
+      const internationalRangeRecords =
+        comparisonEnabled
+          ? getInternationalRecordsForRange(
+              records
+            )
+          : [];
+
+      const hasInternationalComparison =
+        comparisonEnabled &&
+        internationalRangeRecords.length >= 2;
+
+      const dailyPoints =
+        hasInternationalComparison
+          ? createIndexedPoints(
+              records,
+              record => record.price
+            )
+          : records.map(record => ({
+              x: record.timestamp,
+              y: record.price,
+              date: record.date,
+              actualValue: record.price,
+            }));
+
+      const internationalPoints =
+        hasInternationalComparison
+          ? createIndexedPoints(
+              internationalRangeRecords,
+              record => record.usdPerGram
+            )
+          : [];
 
       const historicalPoints =
         historicalRecords.map(record => ({
@@ -1032,11 +1375,19 @@
           date: record.date,
           year: record.year,
           pavanPrice: record.pavanPrice,
+          actualValue: record.price,
         }));
 
       const allTimestamps = [
-        ...historicalPoints.map(point => point.x),
-        ...dailyPoints.map(point => point.x),
+        ...historicalPoints.map(
+          point => point.x
+        ),
+        ...dailyPoints.map(
+          point => point.x
+        ),
+        ...internationalPoints.map(
+          point => point.x
+        ),
       ];
 
       if (!allTimestamps.length) {
@@ -1058,7 +1409,8 @@
 
       if (historicalPoints.length) {
         datasets.push({
-          label: "Older yearly prices prior to 2009",
+          label:
+            "Older yearly prices prior to 2009",
           data: historicalPoints,
           parsing: false,
           borderColor: "#9b7a17",
@@ -1078,20 +1430,59 @@
 
       if (dailyPoints.length) {
         datasets.push({
-          label: "Daily prices from 2009 onwards",
+          label: hasInternationalComparison
+            ? "Kerala 22K trend"
+            : "Daily prices from 2009 onwards",
           data: dailyPoints,
           parsing: false,
           borderColor: "#d4a017",
           backgroundColor:
-            "rgba(212, 160, 23, 0.15)",
-          borderWidth: 2,
+            hasInternationalComparison
+              ? "rgba(212, 160, 23, 0.06)"
+              : "rgba(212, 160, 23, 0.15)",
+          borderWidth: 2.5,
           pointRadius: 0,
           pointHoverRadius: 5,
-          pointHoverBackgroundColor: "#e65100",
+          pointHoverBackgroundColor:
+            "#e65100",
           pointHoverBorderColor: "#ffffff",
           pointHoverBorderWidth: 2,
-          fill: true,
+          fill: !hasInternationalComparison,
           tension: 0,
+          yAxisID: "y",
+        });
+      }
+
+      if (internationalPoints.length) {
+        datasets.push({
+          label: "International gold trend",
+          data: internationalPoints,
+          parsing: false,
+
+          borderColor: "#1565c0",
+          backgroundColor: "#1565c0",
+
+          // Continuous blue line.
+          borderWidth: 2.25,
+          borderDash: [],
+          borderJoinStyle: "round",
+
+          // Hide markers until the user hovers
+          // over an actual recorded observation.
+          pointRadius: 0,
+          pointHitRadius: 10,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: "#ffffff",
+          pointHoverBorderColor: "#1565c0",
+          pointHoverBorderWidth: 2,
+
+          fill: false,
+
+          // Connect genuine observations using
+          // straight lines without invented prices.
+          tension: 0,
+          spanGaps: false,
+
           yAxisID: "y",
         });
       }
@@ -1125,7 +1516,10 @@
 
           plugins: {
             legend: {
-              display: historicalPoints.length > 0,
+              display:
+                historicalPoints.length > 0 ||
+                hasInternationalComparison,
+
               position: "bottom",
 
               labels: {
@@ -1136,13 +1530,20 @@
               },
 
               title: {
-                display: true,
-                text: "Tap a label to show or hide a series",
+                display:
+                  historicalPoints.length > 0 ||
+                  hasInternationalComparison,
+
+                text:
+                  "Tap a label to show or hide a series",
+
                 color: "#777777",
+
                 padding: {
                   top: 8,
                   bottom: 6,
                 },
+
                 font: {
                   size: 11,
                   weight: "normal",
@@ -1164,30 +1565,84 @@
                   }
 
                   return dateFormatter.format(
-                    new Date(items[0].parsed.x)
+                    new Date(
+                      items[0].parsed.x
+                    )
                   );
                 },
 
                 label(context) {
                   const raw = context.raw;
+                  const label =
+                    context.dataset.label;
 
                   if (
-                    context.dataset.label ===
+                    label ===
                     "Older yearly prices prior to 2009"
                   ) {
                     return [
                       "Calculated 22K per gram: " +
-                        formatHistoricalPrice(context.parsed.y),
+                        formatHistoricalPrice(
+                          context.parsed.y
+                        ),
+
                       "Published pavan: " +
-                        formatHistoricalPrice(raw.pavanPrice),
+                        formatHistoricalPrice(
+                          raw.pavanPrice
+                        ),
+
                       "Yearly price recorded on March 31, " +
                         raw.year,
                     ];
                   }
 
+                  if (
+                    label ===
+                    "International gold trend"
+                  ) {
+                    return [
+                      "International index: " +
+                        context.parsed.y.toFixed(
+                          2
+                        ),
+
+                      "USD per gram: " +
+                        usdFormatter.format(
+                          raw.usdPerGram
+                        ),
+
+                      "USD per troy ounce: " +
+                        usdFormatter.format(
+                          raw.usdPerOunce
+                        ),
+                      "Recorded observation",
+
+                      "Source: GoldPrice.org",
+                    ];
+                  }
+
+                  if (
+                    label ===
+                    "Kerala 22K trend"
+                  ) {
+                    return [
+                      "Kerala index: " +
+                        context.parsed.y.toFixed(
+                          2
+                        ),
+
+                      "Kerala 22K per gram: " +
+                        formatPrice(
+                          raw.actualValue
+                        ),
+                    ];
+                  }
+
                   return (
                     "22K per gram: " +
-                    formatPrice(context.parsed.y)
+                    formatPrice(
+                      raw.actualValue
+                    )
                   );
                 },
               },
@@ -1206,7 +1661,10 @@
                 display: true,
                 drawOnChartArea: false,
                 drawTicks: true,
-                tickLength: window.innerWidth <= 720 ? 10 : 7,
+                tickLength:
+                  window.innerWidth <= 720
+                    ? 10
+                    : 7,
                 tickColor: "#777777",
                 color: "#777777",
                 lineWidth: 1.5,
@@ -1219,7 +1677,11 @@
               },
 
               ticks: {
-                maxTicksLimit: window.innerWidth <= 720 ? 5 : 10,
+                maxTicksLimit:
+                  window.innerWidth <= 720
+                    ? 5
+                    : 10,
+
                 autoSkip: true,
                 autoSkipPadding: 12,
                 padding: 7,
@@ -1232,7 +1694,9 @@
                       year: "numeric",
                       month: "short",
                     }
-                  ).format(new Date(value));
+                  ).format(
+                    new Date(value)
+                  );
                 },
               },
             },
@@ -1244,13 +1708,27 @@
 
               ticks: {
                 callback(value) {
-                  return formatPrice(value);
+                  if (
+                    hasInternationalComparison
+                  ) {
+                    return Number(
+                      value
+                    ).toFixed(0);
+                  }
+
+                  return formatPrice(
+                    value
+                  );
                 },
               },
 
               title: {
                 display: true,
-                text: "INR per gram",
+
+                text:
+                  hasInternationalComparison
+                    ? "Indexed trend (start = 100)"
+                    : "INR per gram",
               },
             },
           },
@@ -1271,6 +1749,10 @@
       errorElement.textContent = "";
       errorElement.classList.remove("visible");
 
+      setInternationalComparisonAvailability(
+        range === "1m"
+      );
+
       rangeButtons.forEach(button => {
         button.classList.toggle(
           "active",
@@ -1289,12 +1771,12 @@
               firstDailyTimestamp
           );
 
-        buildChart(
-          records,
-          earlierYearlyRecords
-        );
+        currentViewRecords = records;
 
-        updateSummary(records);
+        currentHistoricalRecords =
+          earlierYearlyRecords;
+
+        renderCurrentView();
 
         rangeSummaryElement.textContent =
           `${dateFormatter.format(
@@ -1315,8 +1797,10 @@
         return;
       }
 
-      buildChart(records);
-      updateSummary(records);
+      currentViewRecords = records;
+      currentHistoricalRecords = [];
+
+      renderCurrentView();
     }
 
     function showError(message) {
@@ -1514,6 +1998,13 @@
       }
     );
 
+    internationalComparisonCheckbox.addEventListener(
+      "change",
+      () => {
+        renderCurrentView();
+      }
+    );
+    
     document.addEventListener("click", event => {
       if (
         downloadsMenu.open &&
