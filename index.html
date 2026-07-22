@@ -61,6 +61,46 @@
     .international-source a:hover {
       text-decoration: underline;
     }
+
+    .comparison-view-control {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .comparison-view-control[hidden] {
+      display: none;
+    }
+
+    .comparison-view-control label {
+      color: #475569;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .comparison-view-control select {
+      min-height: 36px;
+      padding: 7px 34px 7px 11px;
+      border: 1px solid #b9cee5;
+      border-radius: 8px;
+      background-color: #ffffff;
+      color: #1f2937;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .comparison-view-control select:hover {
+      border-color: #1565c0;
+      background-color: #f8fbff;
+    }
+
+    .comparison-view-control select:focus {
+      border-color: #1565c0;
+      outline: 3px solid rgba(21, 101, 192, 0.16);
+      outline-offset: 1px;
+    }
     .downloads-menu {
       position: relative;
     }
@@ -486,6 +526,16 @@
         flex-direction: column;
       }
 
+      .comparison-view-control {
+        width: 100%;
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .comparison-view-control select {
+        width: 100%;
+      }
+
       .downloads-menu summary {
         width: 100%;
         justify-content: center;
@@ -659,6 +709,26 @@
             GoldPrice.org
           </a>
         </span>
+
+        <div
+          id="comparison-view-control"
+          class="comparison-view-control"
+          hidden
+        >
+          <label for="comparison-view-select">
+            Comparison view
+          </label>
+
+          <select id="comparison-view-select">
+            <option value="actual" selected>
+              Actual prices
+            </option>
+
+            <option value="relative">
+              Relative change
+            </option>
+          </select>
+        </div>
       </div>
 
       <div
@@ -816,6 +886,16 @@
     const internationalComparisonCheckbox =
       document.getElementById(
         "international-comparison-checkbox"
+      );
+
+    const comparisonViewControl =
+      document.getElementById(
+        "comparison-view-control"
+      );
+
+    const comparisonViewSelect =
+      document.getElementById(
+        "comparison-view-select"
       );
 
     let allRecords = [];
@@ -1078,6 +1158,8 @@
 
       if (!available) {
         internationalComparisonCheckbox.checked = false;
+        comparisonViewControl.hidden = true;
+        comparisonViewSelect.value = "actual";
       }
     }
 
@@ -1117,14 +1199,6 @@
         return;
       }
 
-      const selectedRangeDays =
-        (
-          endTimestamp -
-          startTimestamp
-        ) / (
-          24 * 60 * 60 * 1000
-        );
-
       const internationalOverlap =
         internationalRecords.some(
           record =>
@@ -1133,7 +1207,6 @@
         );
 
       setInternationalComparisonAvailability(
-        selectedRangeDays <= 31 &&
         internationalOverlap
       );
 
@@ -1238,18 +1311,27 @@
     }
 
     function getInternationalRecordsForRange(
-      records
+      records,
+      historicalRecords = []
     ) {
-      if (!records.length) {
+      const keralaRecords = [
+        ...historicalRecords,
+        ...records,
+      ].sort(
+        (left, right) =>
+          left.timestamp - right.timestamp
+      );
+
+      if (!keralaRecords.length) {
         return [];
       }
 
       const startTimestamp =
-        records[0].timestamp;
+        keralaRecords[0].timestamp;
 
       const endTimestamp =
-        records[
-          records.length - 1
+        keralaRecords[
+          keralaRecords.length - 1
         ].timestamp;
 
       const overlappingRecords =
@@ -1317,18 +1399,20 @@
         !internationalComparison.hidden &&
         internationalComparisonCheckbox.checked;
 
+      const comparisonMode =
+        comparisonViewSelect.value;
+
       buildChart(
         currentViewRecords,
         currentHistoricalRecords,
-        comparisonEnabled
+        comparisonEnabled,
+        comparisonMode
       );
 
       updateSummary(
         currentViewRecords
       );
     }
-
-
 
     function formatPrice(value) {
       return currencyFormatter.format(value);
@@ -1426,12 +1510,22 @@
     function buildChart(
       records,
       historicalRecords = [],
-      comparisonEnabled = false
+      comparisonEnabled = false,
+      comparisonMode = "actual"
     ) {
+      const keralaRangeRecords = [
+        ...historicalRecords,
+        ...records,
+      ].sort(
+        (left, right) =>
+          left.timestamp - right.timestamp
+      );
+
       const internationalRangeRecords =
         comparisonEnabled
           ? getInternationalRecordsForRange(
-              records
+              records,
+              historicalRecords
             )
           : [];
 
@@ -1439,36 +1533,94 @@
         comparisonEnabled &&
         internationalRangeRecords.length >= 2;
 
-      const dailyPoints =
-        hasInternationalComparison
-          ? createIndexedPoints(
-              records,
-              record => record.price
-            )
-          : records.map(record => ({
-              x: record.timestamp,
-              y: record.price,
-              date: record.date,
-              actualValue: record.price,
-            }));
+      const isActualComparison =
+        hasInternationalComparison &&
+        comparisonMode === "actual";
 
-      const internationalPoints =
-        hasInternationalComparison
-          ? createIndexedPoints(
-              internationalRangeRecords,
-              record => record.usdPerGram
-            )
-          : [];
+      const isRelativeComparison =
+        hasInternationalComparison &&
+        comparisonMode === "relative";
 
-      const historicalPoints =
-        historicalRecords.map(record => ({
-          x: record.timestamp,
-          y: record.price,
-          date: record.date,
-          year: record.year,
-          pavanPrice: record.pavanPrice,
-          actualValue: record.price,
-        }));
+      let dailyPoints = [];
+      let historicalPoints = [];
+      let internationalPoints = [];
+
+      if (isRelativeComparison) {
+        /*
+        * Relative-change mode uses only the period where
+        * both Kerala and international data are available.
+        */
+        const overlapStartTimestamp =
+          Math.max(
+            keralaRangeRecords[0].timestamp,
+            internationalRangeRecords[0].timestamp
+          );
+
+        const overlappingKeralaRecords =
+          keralaRangeRecords.filter(
+            record =>
+              record.timestamp >=
+              overlapStartTimestamp
+          );
+
+        const overlappingInternationalRecords =
+          internationalRangeRecords.filter(
+            record =>
+              record.timestamp >=
+              overlapStartTimestamp
+          );
+
+        dailyPoints = createIndexedPoints(
+          overlappingKeralaRecords,
+          record => record.price
+        );
+
+        internationalPoints =
+          createIndexedPoints(
+            overlappingInternationalRecords,
+            record => record.usdPerGram
+          );
+      } else {
+        /*
+        * Normal Kerala-only mode and Actual-prices mode
+        * keep the original recorded price values.
+        */
+        dailyPoints =
+          records.map(record => ({
+            x: record.timestamp,
+            y: record.price,
+            date: record.date,
+            actualValue: record.price,
+          }));
+
+        historicalPoints =
+          historicalRecords.map(record => ({
+            x: record.timestamp,
+            y: record.price,
+            date: record.date,
+            year: record.year,
+            pavanPrice: record.pavanPrice,
+            actualValue: record.price,
+          }));
+
+        if (isActualComparison) {
+          internationalPoints =
+            internationalRangeRecords.map(
+              record => ({
+                x: record.timestamp,
+                y: record.usdPerGram,
+                date: record.date,
+                actualValue:
+                  record.usdPerGram,
+                usdPerOunce:
+                  record.usdPerOunce,
+                usdPerGram:
+                  record.usdPerGram,
+                source: record.source,
+              })
+            );
+        }
+      }
 
       const allTimestamps = [
         ...historicalPoints.map(
@@ -1522,8 +1674,10 @@
 
       if (dailyPoints.length) {
         datasets.push({
-          label: hasInternationalComparison
-            ? "Kerala 22K trend"
+          label: isRelativeComparison
+          ? "Kerala 22K relative change"
+          : isActualComparison
+            ? "Kerala 22K price"
             : "Daily prices from 2009 onwards",
           data: dailyPoints,
           parsing: false,
@@ -1575,7 +1729,10 @@
           tension: 0,
           spanGaps: false,
 
-          yAxisID: "y",
+          yAxisID:
+            isActualComparison
+              ? "yInternational"
+              : "y",
         });
       }
 
@@ -1716,42 +1873,61 @@
                     label ===
                     "International gold trend"
                   ) {
-                    return [
-                      "International index: " +
-                        context.parsed.y.toFixed(
-                          2
-                        ),
+                    const lines = [];
 
+                    if (isRelativeComparison) {
+                      lines.push(
+                        "International change index: " +
+                        context.parsed.y.toFixed(2)
+                      );
+                    }
+
+                    lines.push(
                       "USD per gram: " +
-                        usdFormatter.format(
-                          raw.usdPerGram
-                        ),
+                      usdFormatter.format(
+                        raw.usdPerGram
+                      )
+                    );
 
+                    lines.push(
                       "USD per troy ounce: " +
-                        usdFormatter.format(
-                          raw.usdPerOunce
-                        ),
-                      "Recorded observation",
+                      usdFormatter.format(
+                        raw.usdPerOunce
+                      )
+                    );
 
-                      "Source: GoldPrice.org",
-                    ];
+                    lines.push(
+                      "Source: GoldPrice.org"
+                    );
+
+                    return lines;
                   }
 
                   if (
                     label ===
-                    "Kerala 22K trend"
+                    "Kerala 22K relative change"
                   ) {
                     return [
-                      "Kerala index: " +
-                        context.parsed.y.toFixed(
-                          2
-                        ),
+                      "Kerala change index: " +
+                        context.parsed.y.toFixed(2),
 
                       "Kerala 22K per gram: " +
                         formatPrice(
                           raw.actualValue
                         ),
                     ];
+                  }
+
+                  if (
+                    label ===
+                    "Kerala 22K price"
+                  ) {
+                    return (
+                      "Kerala 22K per gram: " +
+                      formatPrice(
+                        raw.actualValue
+                      )
+                    );
                   }
 
                   return (
@@ -1818,15 +1994,20 @@
             },
 
             y: {
+              position: "left",
+
               grid: {
                 color: "#eeeeee",
               },
 
               ticks: {
+                color:
+                  isActualComparison
+                    ? "#9a6b00"
+                    : "#555555",
+
                 callback(value) {
-                  if (
-                    hasInternationalComparison
-                  ) {
+                  if (isRelativeComparison) {
                     return Number(
                       value
                     ).toFixed(0);
@@ -1841,10 +2022,47 @@
               title: {
                 display: true,
 
+                color:
+                  isActualComparison
+                    ? "#9a6b00"
+                    : "#555555",
+
                 text:
-                  hasInternationalComparison
-                    ? "Indexed trend (start = 100)"
-                    : "INR per gram",
+                  isRelativeComparison
+                    ? "Relative price change (start = 100)"
+                    : isActualComparison
+                      ? "Kerala 22K, INR per gram"
+                      : "INR per gram",
+              },
+            },
+
+            yInternational: {
+              display: isActualComparison,
+              position: "right",
+
+              grid: {
+                drawOnChartArea: false,
+              },
+
+              border: {
+                color: "#1565c0",
+              },
+
+              ticks: {
+                color: "#1565c0",
+
+                callback(value) {
+                  return usdFormatter.format(
+                    value
+                  );
+                },
+              },
+
+              title: {
+                display: isActualComparison,
+                color: "#1565c0",
+                text:
+                  "International gold, USD per gram",
               },
             },
           },
@@ -1865,8 +2083,25 @@
       errorElement.textContent = "";
       errorElement.classList.remove("visible");
 
+      const selectedStartTimestamp =
+        records[0].timestamp;
+
+      const selectedEndTimestamp =
+        records[
+          records.length - 1
+        ].timestamp;
+
+      const internationalOverlap =
+        internationalRecords.some(
+          record =>
+            record.timestamp >=
+              selectedStartTimestamp &&
+            record.timestamp <=
+              selectedEndTimestamp
+        );
+
       setInternationalComparisonAvailability(
-        range === "1m"
+        internationalOverlap
       );
 
       rangeButtons.forEach(button => {
@@ -2115,6 +2350,16 @@
     );
 
     internationalComparisonCheckbox.addEventListener(
+      "change",
+      () => {
+        comparisonViewControl.hidden =
+          !internationalComparisonCheckbox.checked;
+
+        renderCurrentView();
+      }
+    );
+
+    comparisonViewSelect.addEventListener(
       "change",
       () => {
         renderCurrentView();
