@@ -67,14 +67,15 @@
 
     .downloads-menu summary {
       display: inline-flex;
-      min-height: 36px;
-      padding: 8px 14px;
+      min-width: 145px;
+      min-height: 40px;
+      padding: 8px 16px;
       align-items: center;
       gap: 8px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
+      border: 1px solid #d7dee8;
+      border-radius: 9px;
       background: #fff;
-      color: #444;
+      color: #334155;
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
@@ -100,9 +101,11 @@
       font-size: 11px;
     }
 
+    .downloads-menu summary:hover,
     .downloads-menu[open] summary {
       border-color: var(--gold);
-      background: #fff9e7;
+      background: #fff8e7;
+      color: #6f5200;
     }
 
     .downloads-menu[open] summary::after {
@@ -112,14 +115,14 @@
     .downloads-panel {
       position: absolute;
       z-index: 20;
-      top: calc(100% + 8px);
+      top: calc(100% + 10px);
       right: 0;
-      width: 245px;
-      padding: 7px;
+      width: 270px;
+      padding: 8px;
       background: #fff;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14);
+      border: 1px solid #dbe2eb;
+      border-radius: 12px;
+      box-shadow: 0 16px 35px rgba(15, 23, 42, 0.15);
     }
 
     .downloads-panel a {
@@ -242,43 +245,48 @@
     }
 
     header {
-      margin-bottom: 16px;
+      margin-bottom: 18px;
       text-align: center;
     }
 
     h1 {
-      margin: 0 0 4px;
-      font-size: clamp(24px, 4vw, 34px);
+      margin: 0 0 5px;
+      color: #1f2937;
+      font-size: clamp(28px, 4vw, 38px);
+      font-weight: 750;
+      letter-spacing: -0.025em;
+      line-height: 1.15;
     }
 
     .subtitle {
       margin: 0;
-      color: var(--muted);
+      color: #64748b;
       font-size: 14px;
     }
 
     .card {
-      padding: 22px;
-      overflow: hidden;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      box-shadow: 0 3px 18px rgba(0, 0, 0, 0.07);
+      padding: 24px;
+      overflow: visible;
+      background: #ffffff;
+      border: 1px solid #dfe5ed;
+      border-radius: 16px;
+      box-shadow:
+        0 12px 32px rgba(31, 41, 55, 0.08);
     }
 
     .toolbar {
       display: flex;
-      gap: 12px;
+      gap: 16px;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 18px;
+      margin-bottom: 22px;
       flex-wrap: wrap;
     }
 
     .range-buttons,
     .download-links {
       display: flex;
-      gap: 8px;
+      gap: 10px;
       flex-wrap: wrap;
     }
 
@@ -300,6 +308,25 @@
         border-color 0.15s ease;
     }
 
+    .range-buttons button {
+      min-height: 40px;
+      padding: 8px 16px;
+      border-color: #d7dee8;
+      border-radius: 9px;
+      background: #ffffff;
+      color: #334155;
+      font-size: 14px;
+      font-weight: 600;
+      box-shadow:
+        0 1px 2px rgba(15, 23, 42, 0.03);
+    }
+
+    .range-buttons button:hover {
+      border-color: var(--gold);
+      background: #fff8e7;
+      color: #6f5200;
+    }
+
     button:hover,
     .download-link:hover {
       border-color: var(--gold);
@@ -307,10 +334,16 @@
     }
 
     button.active {
-      border-color: var(--gold);
-      background: var(--gold);
-      color: #fff;
-      font-weight: 600;
+      border-color: #ca9200;
+      background: linear-gradient(
+        180deg,
+        #e0ab18 0%,
+        #cc9300 100%
+      );
+      color: #ffffff;
+      font-weight: 700;
+      box-shadow:
+        0 4px 10px rgba(212, 160, 23, 0.24);
     }
 
     .chart-wrapper {
@@ -469,8 +502,8 @@
 
       .card {
         padding: 14px;
+        border-radius: 13px;
       }
-
       .chart-wrapper {
         height: 410px;
       }
@@ -483,7 +516,20 @@
         align-items: stretch;
       }
 
-      .range-buttons,
+      .range-buttons {
+        display: grid;
+        width: 100%;
+        grid-template-columns:
+          repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .range-buttons button {
+        width: 100%;
+        min-height: 40px;
+        padding: 8px 7px;
+      }
+
       .download-links {
         width: 100%;
       }
@@ -496,6 +542,11 @@
 
       .chart-wrapper {
         height: 360px;
+      }
+
+      .range-buttons {
+        grid-template-columns:
+          repeat(2, minmax(0, 1fr));
       }
     }
   </style>
@@ -1340,6 +1391,38 @@
         `${records.length.toLocaleString()} daily records`;
     }
 
+    function updateVisibleXAxis(chartInstance) {
+      const visibleTimestamps = [];
+
+      chartInstance.data.datasets.forEach(
+        (dataset, datasetIndex) => {
+          if (
+            !chartInstance.isDatasetVisible(
+              datasetIndex
+            )
+          ) {
+            return;
+          }
+
+          for (const point of dataset.data) {
+            if (Number.isFinite(point.x)) {
+              visibleTimestamps.push(point.x);
+            }
+          }
+        }
+      );
+
+      if (!visibleTimestamps.length) {
+        return;
+      }
+
+      chartInstance.options.scales.x.min =
+        Math.min(...visibleTimestamps);
+
+      chartInstance.options.scales.x.max =
+        Math.max(...visibleTimestamps);
+    }
+
     function buildChart(
       records,
       historicalRecords = [],
@@ -1530,6 +1613,30 @@
                 hasInternationalComparison,
 
               position: "bottom",
+
+              onClick(event, legendItem, legend) {
+                const chartInstance =
+                  legend.chart;
+
+                const datasetIndex =
+                  legendItem.datasetIndex;
+
+                const currentlyVisible =
+                  chartInstance.isDatasetVisible(
+                    datasetIndex
+                  );
+
+                chartInstance.setDatasetVisibility(
+                  datasetIndex,
+                  !currentlyVisible
+                );
+
+                updateVisibleXAxis(
+                  chartInstance
+                );
+
+                chartInstance.update();
+              },
 
               labels: {
                 usePointStyle: true,
