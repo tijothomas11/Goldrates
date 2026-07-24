@@ -248,6 +248,9 @@
     const INTERNATIONAL_CSV_PATH =
       "data/international_gold_spot.csv";
 
+    const INTERNATIONAL_22K_INR_CSV_PATH =
+      "data/international_gold_22k_inr.csv";
+
     const loadingElement =
       document.getElementById("loading");
 
@@ -313,6 +316,7 @@
     let allRecords = [];
     let yearlyRecords = [];
     let internationalRecords = [];
+    let international22kInrRecords = [];
 
     let currentViewRecords = [];
     let currentHistoricalRecords = [];
@@ -514,6 +518,111 @@
           usdPerOunce,
           usdPerGram,
           source,
+        });
+      }
+
+      records.sort(
+        (left, right) =>
+          left.timestamp - right.timestamp
+      );
+
+      return records;
+    }
+
+    function parseInternational22kInrCsv(text) {
+      const lines = text
+        .split(/\r?\n/)
+        .filter(line => line.trim());
+
+      if (lines.length < 2) {
+        return [];
+      }
+
+      const expectedHeader = [
+        "gold_timestamp_utc",
+        "gold_date",
+        "fx_date",
+        "fx_gap_days",
+        "usd_per_troy_ounce",
+        "usd_inr",
+        "reference_24k_inr_per_gram",
+        "reference_22k_inr_per_gram",
+        "gold_source",
+        "fx_source",
+        "fx_series",
+      ].join(",");
+
+      if (lines[0].trim() !== expectedHeader) {
+        return [];
+      }
+
+      const records = [];
+
+      for (const line of lines.slice(1)) {
+        const columns = line.split(",");
+
+        if (columns.length !== 11) {
+          continue;
+        }
+
+        const timestampText = columns[0].trim();
+        const goldDate = columns[1].trim();
+        const fxDate = columns[2].trim();
+        const fxGapDays = Number(columns[3].trim());
+        const usdPerOunce = Number(columns[4].trim());
+        const usdInr = Number(columns[5].trim());
+        const reference24kInrPerGram =
+          Number(columns[6].trim());
+        const reference22kInrPerGram =
+          Number(columns[7].trim());
+        const goldSource = columns[8].trim();
+        const fxSource = columns[9].trim();
+        const fxSeries = columns[10].trim();
+        const timestamp = Date.parse(timestampText);
+
+        if (
+          !Number.isFinite(timestamp) ||
+          !Number.isInteger(fxGapDays) ||
+          fxGapDays < 0 ||
+          fxGapDays > 7 ||
+          !Number.isFinite(usdPerOunce) ||
+          usdPerOunce <= 0 ||
+          !Number.isFinite(usdInr) ||
+          usdInr <= 0 ||
+          !Number.isFinite(
+            reference24kInrPerGram
+          ) ||
+          reference24kInrPerGram <= 0 ||
+          !Number.isFinite(
+            reference22kInrPerGram
+          ) ||
+          reference22kInrPerGram <= 0
+        ) {
+          continue;
+        }
+
+        if (
+          goldSource !== "GoldPrice.org" ||
+          fxSource !==
+            "Federal Reserve Board via FRED" ||
+          fxSeries !== "DEXINUS"
+        ) {
+          continue;
+        }
+
+        records.push({
+          timestamp,
+          timestampText,
+          goldDate,
+          fxDate,
+          fxGapDays,
+          usdPerOunce,
+          usdInr,
+          reference24kInrPerGram,
+          reference22kInrPerGram,
+          goldSource,
+          fxSource,
+          fxSeries,
         });
       }
 
@@ -1581,6 +1690,7 @@
           dailyResponse,
           yearlyResponse,
           internationalResponse,
+          international22kInrResponse,
         ] = await Promise.all([
           fetch(
             CSV_PATH,
@@ -1598,6 +1708,13 @@
 
           fetch(
             INTERNATIONAL_CSV_PATH,
+            {
+              cache: "no-store",
+            }
+          ),
+
+          fetch(
+            INTERNATIONAL_22K_INR_CSV_PATH,
             {
               cache: "no-store",
             }
@@ -1623,14 +1740,23 @@
           );
         }
 
+        if (!international22kInrResponse.ok) {
+          throw new Error(
+            "International 22K INR CSV HTTP " +
+            international22kInrResponse.status
+          );
+        }
+
         const [
           dailyCsvText,
           yearlyCsvText,
           internationalCsvText,
+          international22kInrCsvText,
         ] = await Promise.all([
           dailyResponse.text(),
           yearlyResponse.text(),
           internationalResponse.text(),
+          international22kInrResponse.text(),
         ]);
 
         allRecords = parseCsv(
@@ -1644,6 +1770,11 @@
         internationalRecords =
           parseInternationalCsv(
             internationalCsvText
+          );
+
+        international22kInrRecords =
+          parseInternational22kInrCsv(
+            international22kInrCsvText
           );
 
         if (!allRecords.length) {
@@ -1665,6 +1796,13 @@
           );
         }
 
+        if (!international22kInrRecords.length) {
+          throw new Error(
+            "The international 22K INR CSV did not " +
+            "contain valid records."
+          );
+        }
+
         console.log(
           "International gold records loaded:",
           internationalRecords.length
@@ -1677,6 +1815,20 @@
           internationalRecords[
             internationalRecords.length - 1
           ].date
+        );
+
+        console.log(
+          "International-derived 22K records loaded:",
+          international22kInrRecords.length
+        );
+
+        console.log(
+          "International-derived 22K coverage:",
+          international22kInrRecords[0].goldDate,
+          "to",
+          international22kInrRecords[
+            international22kInrRecords.length - 1
+          ].goldDate
         );
 
         loadingElement.classList.remove("visible");
