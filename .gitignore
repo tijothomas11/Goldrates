@@ -14,3 +14,4 @@ node_modules/
 !gold_rates.svg
 !data/international_gold_spot.csv
 !data/usd_inr_history.csv
+!data/international_gold_22k_inr.csv
