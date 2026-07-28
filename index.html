@@ -122,6 +122,18 @@
           </a>
         </span>
 
+        <span
+          id="reference-fx-source"
+          class="international-source"
+          hidden
+        >
+          FX data:
+          https://fred.stlouisfed.org/series/DEXINUS
+            Federal Reserve Board via FRED
+          </a>
+          (DEXINUS)
+        </span>
+
         <div
           id="comparison-view-control"
           class="comparison-view-control"
@@ -132,10 +144,12 @@
           </label>
 
           <select id="comparison-view-select">
-            <option value="actual" selected>
+            <option value="reference" selected>
+              International 22K reference in INR
+            </option>
+            <option value="actual">
               Actual prices
             </option>
-
             <option value="relative">
               Relative change
             </option>
@@ -311,6 +325,11 @@
     const comparisonViewSelect =
       document.getElementById(
         "comparison-view-select"
+      );
+
+    const referenceFxSource =
+      document.getElementById(
+        "reference-fx-source"
       );
 
     let allRecords = [];
@@ -680,7 +699,7 @@
       if (!available) {
         internationalComparisonCheckbox.checked = false;
         comparisonViewControl.hidden = true;
-        comparisonViewSelect.value = "actual";
+        comparisonViewSelect.value = "reference";
       }
     }
 
@@ -878,6 +897,37 @@
       return sampledRecords;
     }
 
+    function getInternational22kInrRecordsForRange(
+      records,
+      historicalRecords = []
+    ) {
+      const keralaRecords = [
+        ...historicalRecords,
+        ...records,
+      ].sort(
+        (left, right) =>
+          left.timestamp - right.timestamp
+      );
+
+      if (!keralaRecords.length) {
+        return [];
+      }
+
+      const startTimestamp =
+        keralaRecords[0].timestamp;
+
+      const endTimestamp =
+        keralaRecords[
+          keralaRecords.length - 1
+        ].timestamp;
+
+      return international22kInrRecords.filter(
+        record =>
+          record.timestamp >= startTimestamp &&
+          record.timestamp <= endTimestamp
+      );
+    }
+
     function createIndexedPoints(
       records,
       valueSelector
@@ -922,6 +972,10 @@
 
       const comparisonMode =
         comparisonViewSelect.value;
+
+      referenceFxSource.hidden =
+        !comparisonEnabled ||
+        comparisonMode !== "reference";
 
       buildChart(
         currentViewRecords,
@@ -1050,9 +1104,25 @@
             )
           : [];
 
+      const international22kInrRangeRecords =
+        comparisonEnabled
+          ? getInternational22kInrRecordsForRange(
+              records,
+              historicalRecords
+            )
+          : [];
+
       const hasInternationalComparison =
         comparisonEnabled &&
         internationalRangeRecords.length >= 2;
+
+      const hasInternational22kInrComparison =
+        comparisonEnabled &&
+        international22kInrRangeRecords.length >= 2;
+
+      const isReferenceComparison =
+        hasInternational22kInrComparison &&
+        comparisonMode === "reference";
 
       const isActualComparison =
         hasInternationalComparison &&
@@ -1061,6 +1131,11 @@
       const isRelativeComparison =
         hasInternationalComparison &&
         comparisonMode === "relative";
+
+      const hasActiveComparison =
+        isReferenceComparison ||
+        isActualComparison ||
+        isRelativeComparison;
 
       let dailyPoints = [];
       let historicalPoints = [];
@@ -1123,6 +1198,32 @@
             pavanPrice: record.pavanPrice,
             actualValue: record.price,
           }));
+
+        if (isReferenceComparison) {
+          internationalPoints =
+            international22kInrRangeRecords.map(
+              record => ({
+                x: record.timestamp,
+                y: record.reference22kInrPerGram,
+                date: record.goldDate,
+                goldDate: record.goldDate,
+                fxDate: record.fxDate,
+                fxGapDays: record.fxGapDays,
+                actualValue:
+                  record.reference22kInrPerGram,
+                reference24kInrPerGram:
+                  record.reference24kInrPerGram,
+                reference22kInrPerGram:
+                  record.reference22kInrPerGram,
+                usdPerOunce:
+                  record.usdPerOunce,
+                usdInr: record.usdInr,
+                goldSource: record.goldSource,
+                fxSource: record.fxSource,
+                fxSeries: record.fxSeries,
+              })
+            );
+        }
 
         if (isActualComparison) {
           internationalPoints =
@@ -1196,15 +1297,17 @@
       if (dailyPoints.length) {
         datasets.push({
           label: isRelativeComparison
-          ? "Kerala 22K relative change"
-          : isActualComparison
-            ? "Kerala 22K price"
-            : "Daily prices from 2009 onwards",
+            ? "Kerala 22K relative change"
+            : isReferenceComparison
+              ? "Kerala published 22K"
+              : isActualComparison
+                ? "Kerala 22K price"
+                : "Daily prices from 2009 onwards",
           data: dailyPoints,
           parsing: false,
           borderColor: "#d4a017",
           backgroundColor:
-            hasInternationalComparison
+            hasActiveComparison
               ? "rgba(212, 160, 23, 0.06)"
               : "rgba(212, 160, 23, 0.15)",
           borderWidth: 2.5,
@@ -1214,7 +1317,7 @@
             "#e65100",
           pointHoverBorderColor: "#ffffff",
           pointHoverBorderWidth: 2,
-          fill: !hasInternationalComparison,
+          fill: !hasActiveComparison,
           tension: 0,
           yAxisID: "y",
         });
@@ -1222,7 +1325,9 @@
 
       if (internationalPoints.length) {
         datasets.push({
-          label: "International gold trend",
+          label: isReferenceComparison
+            ? "International-derived 22K reference"
+            : "International gold trend",
           data: internationalPoints,
           parsing: false,
 
@@ -1231,7 +1336,10 @@
 
           // Continuous blue line.
           borderWidth: 2.25,
-          borderDash: [],
+          borderDash:
+            isReferenceComparison
+              ? [8, 5]
+              : [],
           borderJoinStyle: "round",
 
           // Hide markers until the user hovers
@@ -1288,7 +1396,7 @@
             legend: {
               display:
                 historicalPoints.length > 0 ||
-                hasInternationalComparison,
+                hasActiveComparison,
 
               position: "bottom",
 
@@ -1326,7 +1434,7 @@
               title: {
                 display:
                   historicalPoints.length > 0 ||
-                  hasInternationalComparison,
+                  hasActiveComparison,
 
                 text:
                   "Tap a label to show or hide a series",
@@ -1387,6 +1495,47 @@
 
                       "Yearly price recorded on March 31, " +
                         raw.year,
+                    ];
+                  }
+                  if (
+                    label ===
+                    "International-derived 22K reference"
+                  ) {
+                    return [
+                      "International-derived 22K reference: " +
+                        formatHistoricalPrice(
+                          raw.reference22kInrPerGram
+                        ),
+                      "International 24K reference: " +
+                        formatHistoricalPrice(
+                          raw.reference24kInrPerGram
+                        ),
+                      "International gold: " +
+                        usdFormatter.format(
+                          raw.usdPerOunce
+                        ) +
+                        " per troy ounce",
+                      "USD/INR rate used: " +
+                        raw.usdInr.toFixed(4),
+                      "Gold observation date: " +
+                        raw.goldDate,
+                      "FX date used: " +
+                        raw.fxDate,
+                      "FX gap: " +
+                        raw.fxGapDays +
+                        (
+                          raw.fxGapDays === 1
+                            ? " day"
+                            : " days"
+                        ),
+                      "Gold source: " +
+                        raw.goldSource,
+                      "FX source: " +
+                        raw.fxSource +
+                        " (" +
+                        raw.fxSeries +
+                        ")",
+                      "Derived reference, not a quoted Kerala retail price.",
                     ];
                   }
 
@@ -1551,9 +1700,11 @@
                 text:
                   isRelativeComparison
                     ? "Relative price change (start = 100)"
-                    : isActualComparison
-                      ? "Kerala 22K, INR per gram"
-                      : "INR per gram",
+                    : isReferenceComparison
+                      ? "22K gold, INR per gram"
+                      : isActualComparison
+                        ? "Kerala 22K, INR per gram"
+                        : "INR per gram",
               },
             },
 
