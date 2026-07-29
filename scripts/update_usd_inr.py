@@ -335,6 +335,7 @@ def write_history(
         writer = csv.DictWriter(
             file,
             fieldnames=EXPECTED_FIELDS,
+            lineterminator="\n",
         )
 
         writer.writeheader()

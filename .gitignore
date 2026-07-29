@@ -15,3 +15,4 @@ node_modules/
 !data/international_gold_spot.csv
 !data/usd_inr_history.csv
 !data/international_gold_22k_inr.csv
+international_gold_recent_preview.json

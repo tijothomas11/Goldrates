@@ -519,6 +519,7 @@ def write_output(
         writer = csv.DictWriter(
             file,
             fieldnames=OUTPUT_FIELDS,
+            lineterminator="\n",
         )
 
         writer.writeheader()

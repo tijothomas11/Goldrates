@@ -22,18 +22,18 @@ sys.path.insert(
     str(SCRIPTS_DIRECTORY),
 )
 
-
 from update_international_gold import (  # noqa: E402  # pyright: ignore[reportMissingImports]
     EXPECTED_FIELDS,
     calculate_usd_per_gram,
+    combine_incoming_records,
     compare_histories,
+    count_unchanged_records,
     parse_historical_response,
     parse_historical_timestamp,
     parse_price,
     parse_recent_response,
     read_permanent_history,
 )
-
 
 class InternationalGoldUpdateTests(
     unittest.TestCase
@@ -368,6 +368,82 @@ class InternationalGoldUpdateTests(
                         Decimal("64.9000")
                 },
             )
+
+    def test_combined_records_ignore_exact_duplicates(
+        self
+    ):
+        """Identical timestamps and prices should occur once."""
+
+        payload = json.dumps([
+            "USD-XAU!,949716,64.9000"
+        ])
+
+        historical_records = (
+            parse_historical_response(
+                payload
+            )
+        )
+
+        combined = combine_incoming_records(
+            historical_records,
+            historical_records,
+        )
+
+        self.assertEqual(
+            len(combined),
+            1,
+        )
+
+    def test_combined_records_reject_conflicts(
+        self
+    ):
+        """Different prices at one timestamp must fail."""
+
+        first = parse_historical_response(
+            json.dumps([
+                "USD-XAU!,949716,64.9000"
+            ])
+        )
+
+        second = parse_historical_response(
+            json.dumps([
+                "USD-XAU!,949716,65.0000"
+            ])
+        )
+
+        with self.assertRaises(ValueError):
+            combine_incoming_records(
+                first,
+                second,
+            )
+
+    def test_count_unchanged_records(self):
+        """Only exact permanent matches are unchanged."""
+
+        incoming = parse_historical_response(
+            json.dumps([
+                (
+                    "USD-XAU!,"
+                    "949716,64.9000,"
+                    "950580,65.2500"
+                )
+            ])
+        )
+
+        permanent = {
+            "1973-01-04T05:00:00.000Z":
+                Decimal("64.9000"),
+        }
+
+        actual = count_unchanged_records(
+            permanent,
+            incoming,
+        )
+
+        self.assertEqual(
+            actual,
+            1,
+        )
 
 
 if __name__ == "__main__":
