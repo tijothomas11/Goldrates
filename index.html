@@ -853,6 +853,59 @@
       return sampledRecords;
     }
 
+    function getUtcDayEndTimestamp(timestamp) {
+      const date = new Date(timestamp);
+
+      return Date.UTC(
+        date.getUTCFullYear(),
+        date.getUTCMonth(),
+        date.getUTCDate() + 1
+      ) - 1;
+    }
+
+    function getComparisonEndTimestamp(
+      keralaEndTimestamp,
+      sourceRecords
+    ) {
+      const keralaDayEnd =
+        getUtcDayEndTimestamp(
+          keralaEndTimestamp
+        );
+
+      if (
+        !allRecords.length ||
+        !sourceRecords.length
+      ) {
+        return keralaDayEnd;
+      }
+
+      const latestKeralaTimestamp =
+        allRecords[
+          allRecords.length - 1
+        ].timestamp;
+
+      // Older historical ranges must stop on their
+      // selected ending date. Only a view that reaches
+      // the latest Kerala record may continue through
+      // newer international observations.
+      if (
+        keralaEndTimestamp !==
+        latestKeralaTimestamp
+      ) {
+        return keralaDayEnd;
+      }
+
+      const latestSourceTimestamp =
+        sourceRecords[
+          sourceRecords.length - 1
+        ].timestamp;
+
+      return Math.max(
+        keralaDayEnd,
+        latestSourceTimestamp
+      );
+    }
+
     function getInternationalRecordsForRange(
       records,
       historicalRecords = []
@@ -872,10 +925,16 @@
       const startTimestamp =
         keralaRecords[0].timestamp;
 
-      const endTimestamp =
+      const keralaEndTimestamp =
         keralaRecords[
           keralaRecords.length - 1
         ].timestamp;
+
+      const endTimestamp =
+        getComparisonEndTimestamp(
+          keralaEndTimestamp,
+          internationalRecords
+        );
 
       const overlappingRecords =
         internationalRecords.filter(
@@ -919,10 +978,16 @@
       const startTimestamp =
         keralaRecords[0].timestamp;
 
-      const endTimestamp =
+      const keralaEndTimestamp =
         keralaRecords[
           keralaRecords.length - 1
         ].timestamp;
+
+      const endTimestamp =
+        getComparisonEndTimestamp(
+          keralaEndTimestamp,
+          international22kInrRecords
+        );
 
       return international22kInrRecords.filter(
         record =>
@@ -1471,9 +1536,34 @@
                     return "";
                   }
 
+                  const item = items[0];
+                  const raw = item.raw;
+                  const label =
+                    item.dataset.label;
+
+                  // International observations already
+                  // carry their source date in UTC. Use
+                  // that date directly so the browser's
+                  // timezone cannot shift it backward.
+                  if (
+                    label ===
+                    "International-derived 22K reference" &&
+                    raw.goldDate
+                  ) {
+                    return raw.goldDate;
+                  }
+
+                  if (
+                    label ===
+                    "International gold trend" &&
+                    raw.date
+                  ) {
+                    return raw.date;
+                  }
+
                   return dateFormatter.format(
                     new Date(
-                      items[0].parsed.x
+                      item.parsed.x
                     )
                   );
                 },
