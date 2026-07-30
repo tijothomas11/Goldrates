@@ -765,6 +765,9 @@
     function downsampleInternationalRecords(
       records
     ) {
+      // The international dataset can be denser than the Kerala daily series.
+      // Sample genuine observations rather than averaging them so the chart
+      // stays faithful to the source data while keeping the display readable.
       if (records.length <= 2) {
         return records;
       }
@@ -932,6 +935,8 @@
       records,
       valueSelector
     ) {
+      // Relative-change and reference-comparison views start the index at 100
+      // so the chart can show percentage movement from the first point.
       if (!records.length) {
         return [];
       }

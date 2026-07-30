@@ -243,6 +243,8 @@ def main():
         f"Combined records: {len(observed_rows)}"
     )
 
+    # Preview mode reuses the same immutable-history comparison logic as the
+    # apply path, but it never replaces the permanent history file.
     try:
         result = merge_history_rows(
             existing_rows,

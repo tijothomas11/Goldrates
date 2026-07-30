@@ -1,4 +1,9 @@
-"""Safe merge logic for permanent gold-rate history."""
+"""Safe merge logic for permanent gold-rate history.
+
+Permanent observations are treated as immutable. Exact duplicates are ignored,
+new observations are appended, and a changed value at an existing date/session
+key is treated as a conflict instead of silently overwriting earlier data.
+"""
 
 from dataclasses import dataclass
 
@@ -141,6 +146,9 @@ def merge_history_rows(existing_rows, observed_rows):
     new_rows = []
     unchanged_count = 0
 
+    # Existing date/session observations are immutable. Identical incoming
+    # values are left unchanged, while a different value at the same key is a
+    # conflict that stops the merge.
     for observed_row in observed_rows:
         key = history_key(observed_row)
 

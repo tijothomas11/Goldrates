@@ -319,7 +319,12 @@ def find_fx_record(
     fx_dates: list[date],
     fx_records: list[dict[str, object]],
 ) -> dict[str, object] | None:
-    """Find the latest FX record on or before a gold date."""
+    """Find the latest FX record on or before a gold date.
+
+    The derived dataset prefers the most recent exchange-rate observation that
+    was available when the gold observation occurred. A future FX date is never
+    used, and the selected date and gap are retained in the output.
+    """
 
     position = bisect_right(
         fx_dates,
@@ -371,6 +376,9 @@ def generate_rows(
             gold_date - fx_date
         ).days
 
+        # Keep the actual FX date and the observed gap in the output. A gap
+        # larger than seven calendar days is treated as unusable for this
+        # derived reference row.
         if gap_days > MAX_FX_GAP_DAYS:
             warnings.append(
                 "USD/INR gap exceeds "

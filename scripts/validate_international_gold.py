@@ -176,6 +176,8 @@ def validate_file(path):
             )
 
         if timestamp in seen_timestamps:
+            # Duplicate timestamps would make the same observation appear more
+            # than once in the permanent history.
             errors.append(
                 f"Row {row_number}: "
                 "duplicate timestamp."

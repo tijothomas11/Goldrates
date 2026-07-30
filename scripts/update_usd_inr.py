@@ -544,6 +544,9 @@ def apply_update(
         )
 
         if PERMANENT_PATH.exists():
+            # The temporary candidate is validated before the permanent file is
+            # replaced. A backup is kept so the previous history can be restored
+            # if the final validation rejects the update.
             backup_path = create_backup(
                 PERMANENT_PATH
             )

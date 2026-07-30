@@ -186,6 +186,8 @@ def validate_file(
 
         return errors, warnings, rows
 
+    # Each date should appear once and the file should be strictly increasing
+    # so the permanent history stays chronological and unambiguous.
     seen_dates: set[date] = set()
     previous_date: date | None = None
 

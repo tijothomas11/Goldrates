@@ -5,7 +5,9 @@ on:
   # Allow the workflow to be started manually.
   workflow_dispatch:
 
-  # Check for new Kerala gold rates once every day.
+  # Check for new Kerala gold rates once every day in UTC.
+  # The workflow uses the repository's fixed cron schedule rather than a
+  # local-time assumption.
   schedule:
     - cron: "30 12 * * *"
 

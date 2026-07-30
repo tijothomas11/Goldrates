@@ -260,6 +260,8 @@ def validate_file(
             gold_date - fx_date
         ).days
 
+        # The stored FX gap should match the actual calendar-day difference
+        # between the gold observation and the chosen FX date.
         if fx_gap_days != calculated_gap:
             errors.append(
                 f"Row {row_number}: stored FX gap "

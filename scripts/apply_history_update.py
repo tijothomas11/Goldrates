@@ -1,15 +1,9 @@
 """Safely apply new observations to permanent gold-rate history.
 
-The script:
-
-- fetches current gram and pavan observations;
-- performs the immutable-history comparison again;
-- aborts if an existing price has changed;
-- creates a timestamped backup;
-- appends only new date/session observations;
-- writes the permanent CSV atomically;
-- runs the permanent-history validator;
-- restores the backup if validation fails.
+The script fetches current gram and pavan observations, performs the same
+immutable-history comparison as the preview flow, aborts on conflicts, creates a
+backup, writes the permanent CSV through a temporary file, validates the result,
+and restores the backup if the final validation fails.
 
 Usage:
     python scripts/apply_history_update.py --apply
@@ -130,6 +124,9 @@ def write_permanent_history(rows):
 
             file.flush()
 
+        # Only replace the permanent file after the temporary candidate has
+        # been written and validated, so a partial update cannot become public
+        # data.
         temporary_path.replace(
             PERMANENT_HISTORY_PATH
         )

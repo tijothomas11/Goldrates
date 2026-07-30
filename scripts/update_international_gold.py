@@ -345,7 +345,12 @@ def parse_recent_response(
     payload: str,
     retrieval_timestamp: datetime,
 ) -> list[dict[str, object]]:
-    """Reconstruct ten-second recent observations."""
+    """Reconstruct recent observations at ten-second intervals.
+
+    The recent GoldPrice.org response contains prices but no timestamps. The
+    retrieval timestamp is preserved and each observation is reconstructed from
+    that anchor using ten-second spacing.
+    """
 
     prices = unpack_response(
         payload,
@@ -361,6 +366,9 @@ def parse_recent_response(
         retrieval_timestamp
     )
 
+    # The recent response provides prices but not timestamps. Reconstruct each
+    # observation from the recorded UTC retrieval time using ten-second
+    # intervals.
     total_points = len(prices)
 
     first_timestamp = (
@@ -501,6 +509,9 @@ def compare_histories(
     additions: list[
         dict[str, object]
     ] = []
+
+    # Existing timestamps are immutable. Identical incoming values are ignored,
+    # while a different price at the same timestamp is a conflict.
 
     conflicts: list[
         tuple[str, Decimal, Decimal]
