@@ -10,12 +10,33 @@
 
   <title>Kerala Gold Rate History</title>
 
+  <meta name="color-scheme" content="light dark">
+
   <style>
     :root {
+      color-scheme: light dark;
+
       --gold: #d4a017;
       --border: #e5e5e5;
       --background: #f5f5f5;
       --text: #333;
+      --card: #fff;
+      --shadow: rgba(0, 0, 0, 0.07);
+      --surface-hover: #fff9e7;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+
+        --gold: #bc8916;
+        --border: rgba(255, 255, 255, 0.1);
+        --background: #0d0d0d;
+        --text: #ffffff;
+        --card: #1a1a19;
+        --shadow: rgba(0, 0, 0, 0.5);
+        --surface-hover: rgba(212, 160, 23, 0.14);
+      }
     }
 
     * {
@@ -58,8 +79,8 @@
       justify-content: center;
       border: 1px solid var(--border);
       border-radius: 8px;
-      background: #fff;
-      color: #444;
+      background: var(--card);
+      color: var(--text);
       font-size: 13px;
       font-weight: 600;
       text-decoration: none;
@@ -67,14 +88,20 @@
 
     .toolbar a:hover {
       border-color: var(--gold);
-      background: #fff9e7;
+      background: var(--surface-hover);
     }
 
     .chart-card {
+      /*
+      * Always light: the embedded SVG has a white
+      * background baked in, so this card frames it
+      * like an image rather than following the page
+      * theme.
+      */
       padding: 16px;
       overflow: hidden;
       background: #fff;
-      border: 1px solid var(--border);
+      border: 1px solid #e5e5e5;
       border-radius: 12px;
       box-shadow: 0 3px 18px rgba(0, 0, 0, 0.07);
     }

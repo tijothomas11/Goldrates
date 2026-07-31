@@ -5,8 +5,8 @@
       justify-content: center;
       margin: 0 0 18px;
       padding: 11px 14px;
-      background: #f7fbff;
-      border: 1px solid #cfe3f5;
+      background: var(--panel-info-bg);
+      border: 1px solid var(--panel-info-border);
       border-radius: 9px;
       flex-wrap: wrap;
     }
@@ -19,7 +19,7 @@
       display: inline-flex;
       gap: 8px;
       align-items: center;
-      color: #333;
+      color: var(--text);
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
@@ -29,7 +29,7 @@
       width: 17px;
       height: 17px;
       margin: 0;
-      accent-color: #1565c0;
+      accent-color: var(--link);
       cursor: pointer;
     }
 
@@ -39,7 +39,7 @@
     }
 
     .international-source a {
-      color: #1565c0;
+      color: var(--link);
       font-weight: 600;
       text-decoration: none;
     }
@@ -59,7 +59,7 @@
     }
 
     .comparison-view-control label {
-      color: #475569;
+      color: var(--text-secondary);
       font-size: 13px;
       font-weight: 600;
     }
@@ -67,10 +67,10 @@
     .comparison-view-control select {
       min-height: 36px;
       padding: 7px 34px 7px 11px;
-      border: 1px solid #b9cee5;
+      border: 1px solid var(--panel-info-border);
       border-radius: 8px;
-      background-color: #ffffff;
-      color: #1f2937;
+      background-color: var(--card);
+      color: var(--heading);
       font: inherit;
       font-size: 13px;
       font-weight: 600;
@@ -78,13 +78,13 @@
     }
 
     .comparison-view-control select:hover {
-      border-color: #1565c0;
-      background-color: #f8fbff;
+      border-color: var(--link);
+      background-color: var(--panel-info-bg);
     }
 
     .comparison-view-control select:focus {
-      border-color: #1565c0;
-      outline: 3px solid rgba(21, 101, 192, 0.16);
+      border-color: var(--link);
+      outline: 3px solid var(--link-ring);
       outline-offset: 1px;
     }
     .downloads-menu {
@@ -98,10 +98,10 @@
       padding: 8px 16px;
       align-items: center;
       gap: 8px;
-      border: 1px solid #d7dee8;
+      border: 1px solid var(--border);
       border-radius: 9px;
-      background: #fff;
-      color: #334155;
+      background: var(--card);
+      color: var(--text-secondary);
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
@@ -130,8 +130,8 @@
     .downloads-menu summary:hover,
     .downloads-menu[open] summary {
       border-color: var(--gold);
-      background: #fff8e7;
-      color: #6f5200;
+      background: var(--surface-hover-strong);
+      color: var(--gold-ink);
     }
 
     .downloads-menu[open] summary::after {
@@ -145,10 +145,10 @@
       right: 0;
       width: 270px;
       padding: 8px;
-      background: #fff;
-      border: 1px solid #dbe2eb;
+      background: var(--card);
+      border: 1px solid var(--border);
       border-radius: 12px;
-      box-shadow: 0 16px 35px rgba(15, 23, 42, 0.15);
+      box-shadow: 0 16px 35px var(--shadow-lg);
     }
 
     .downloads-panel a {
@@ -163,7 +163,7 @@
     }
 
     .downloads-panel a:hover {
-      background: #fff9e7;
+      background: var(--surface-hover);
     }
 
     .download-type {
@@ -173,7 +173,7 @@
       justify-content: center;
       border: 1px solid var(--border);
       border-radius: 6px;
-      background: #fafafa;
+      background: var(--surface-2);
       color: var(--gold-dark);
       font-size: 11px;
       font-weight: 700;
@@ -181,7 +181,7 @@
     }
 
     .download-description {
-      color: #555;
+      color: var(--text-secondary);
       font-size: 13px;
     }
     .custom-range-controls {
@@ -190,7 +190,7 @@
       align-items: end;
       margin-bottom: 18px;
       padding: 14px;
-      background: #fafafa;
+      background: var(--surface-2);
       border: 1px solid var(--border);
       border-radius: 10px;
       flex-wrap: wrap;
@@ -213,14 +213,14 @@
       padding: 7px 9px;
       border: 1px solid var(--border);
       border-radius: 7px;
-      background: #fff;
+      background: var(--card);
       color: var(--text);
       font: inherit;
     }
 
     .custom-range-controls input:focus {
       border-color: var(--gold);
-      outline: 2px solid rgba(212, 160, 23, 0.18);
+      outline: 2px solid var(--gold-ring);
     }
 
     .custom-range-error {
@@ -229,16 +229,65 @@
       font-size: 13px;
     }
     :root {
+      color-scheme: light dark;
+
       --gold: #d4a017;
       --gold-dark: #a87900;
+      --gold-ink: #6f5200;
       --orange: #e65100;
       --green: #2e7d32;
       --red: #c62828;
       --text: #333;
+      --text-secondary: #475569;
+      --heading: #1f2937;
       --muted: #777;
       --border: #e5e5e5;
       --background: #f5f5f5;
       --card: #fff;
+      --surface-2: #fafafa;
+      --surface-hover: #fff9e7;
+      --surface-hover-strong: #fff8e7;
+      --link: #1565c0;
+      --link-ring: rgba(21, 101, 192, 0.16);
+      --gold-ring: rgba(212, 160, 23, 0.18);
+      --panel-info-bg: #f7fbff;
+      --panel-info-border: #cfe3f5;
+      --shadow: rgba(31, 41, 55, 0.08);
+      --shadow-lg: rgba(15, 23, 42, 0.15);
+      --page-grad-1: #f8fafc;
+      --page-grad-2: #f4f6f9;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+
+        --gold: #bc8916;
+        --gold-dark: #d9a840;
+        --gold-ink: #f0d27a;
+        --orange: #ff8a3d;
+        --green: #4fbf5c;
+        --red: #e2665f;
+        --text: #ffffff;
+        --text-secondary: #c3c2b7;
+        --heading: #ffffff;
+        --muted: #918f88;
+        --border: rgba(255, 255, 255, 0.1);
+        --background: #0d0d0d;
+        --card: #1a1a19;
+        --surface-2: #232321;
+        --surface-hover: rgba(212, 160, 23, 0.14);
+        --surface-hover-strong: rgba(212, 160, 23, 0.22);
+        --link: #4c8fe0;
+        --link-ring: rgba(76, 143, 224, 0.3);
+        --gold-ring: rgba(188, 137, 22, 0.3);
+        --panel-info-bg: rgba(76, 143, 224, 0.12);
+        --panel-info-border: rgba(76, 143, 224, 0.35);
+        --shadow: rgba(0, 0, 0, 0.5);
+        --shadow-lg: rgba(0, 0, 0, 0.6);
+        --page-grad-1: #0d0d0d;
+        --page-grad-2: #111113;
+      }
     }
 
     * {
@@ -251,8 +300,8 @@
       min-height: 100vh;
       background: linear-gradient(
         180deg,
-        #f8fafc 0%,
-        #f4f6f9 100%
+        var(--page-grad-1) 0%,
+        var(--page-grad-2) 100%
       );
       color: var(--text);
       font-family:
@@ -277,7 +326,7 @@
 
     h1 {
       margin: 0 0 5px;
-      color: #1f2937;
+      color: var(--heading);
       font-size: clamp(28px, 4vw, 38px);
       font-weight: 750;
       letter-spacing: -0.025em;
@@ -286,18 +335,18 @@
 
     .subtitle {
       margin: 0;
-      color: #64748b;
+      color: var(--muted);
       font-size: 14px;
     }
 
     .card {
       padding: 24px;
       overflow: visible;
-      background: #ffffff;
-      border: 1px solid #dfe5ed;
+      background: var(--card);
+      border: 1px solid var(--border);
       border-radius: 16px;
       box-shadow:
-        0 12px 32px rgba(31, 41, 55, 0.08);
+        0 12px 32px var(--shadow);
     }
 
     .toolbar {
@@ -322,8 +371,8 @@
       padding: 8px 13px;
       border: 1px solid var(--border);
       border-radius: 8px;
-      background: #fff;
-      color: #444;
+      background: var(--card);
+      color: var(--text-secondary);
       font: inherit;
       font-size: 13px;
       cursor: pointer;
@@ -337,26 +386,26 @@
     .range-buttons button {
       min-height: 40px;
       padding: 8px 16px;
-      border-color: #d7dee8;
+      border-color: var(--border);
       border-radius: 9px;
-      background: #ffffff;
-      color: #334155;
+      background: var(--card);
+      color: var(--text-secondary);
       font-size: 14px;
       font-weight: 600;
       box-shadow:
-        0 1px 2px rgba(15, 23, 42, 0.03);
+        0 1px 2px var(--shadow);
     }
 
     .range-buttons button:hover {
       border-color: var(--gold);
-      background: #fff8e7;
-      color: #6f5200;
+      background: var(--surface-hover-strong);
+      color: var(--gold-ink);
     }
 
     button:hover,
     .download-link:hover {
       border-color: var(--gold);
-      background: #fff9e7;
+      background: var(--surface-hover);
     }
 
     button.active {
@@ -417,7 +466,7 @@
 
     .summary-item {
       padding: 14px;
-      background: #fafafa;
+      background: var(--surface-2);
       border: 1px solid var(--border);
       border-radius: 10px;
       text-align: center;
@@ -449,7 +498,7 @@
     }
 
     .average-value {
-      color: #555;
+      color: var(--text-secondary);
     }
 
     .range-summary {
@@ -484,8 +533,8 @@
       justify-content: center;
       border: 1px solid var(--border);
       border-radius: 8px;
-      background: #fff;
-      color: #444;
+      background: var(--card);
+      color: var(--text-secondary);
       font-size: 13px;
       font-weight: 600;
       text-decoration: none;
@@ -493,7 +542,7 @@
 
     .static-chart-link:hover {
       border-color: var(--gold);
-      background: #fff9e7;
+      background: var(--surface-hover);
     }
 
     footer {
