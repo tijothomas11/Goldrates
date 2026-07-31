@@ -114,17 +114,37 @@
     }
 
     .downloads-menu summary::before {
-      content: "↓";
-      color: var(--gold-dark);
-      font-size: 15px;
-      font-weight: 700;
+      content: "";
+      display: inline-block;
+      width: 15px;
+      height: 15px;
+      background-color: var(--gold-dark);
+      -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12%203v12m-4-4%204%204%204-4M4%2021h16'/%3E%3C/svg%3E");
+      mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12%203v12m-4-4%204%204%204-4M4%2021h16'/%3E%3C/svg%3E");
+      -webkit-mask-repeat: no-repeat;
+      mask-repeat: no-repeat;
+      -webkit-mask-position: center;
+      mask-position: center;
+      -webkit-mask-size: contain;
+      mask-size: contain;
     }
 
     .downloads-menu summary::after {
-      content: "▾";
+      content: "";
+      display: inline-block;
+      width: 11px;
+      height: 11px;
       margin-left: 2px;
-      color: var(--muted);
-      font-size: 11px;
+      background-color: var(--muted);
+      -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000000' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6%209%206%206%206-6'/%3E%3C/svg%3E");
+      mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000000' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6%209%206%206%206-6'/%3E%3C/svg%3E");
+      -webkit-mask-repeat: no-repeat;
+      mask-repeat: no-repeat;
+      -webkit-mask-position: center;
+      mask-position: center;
+      -webkit-mask-size: contain;
+      mask-size: contain;
+      transition: transform 0.15s ease;
     }
 
     .downloads-menu summary:hover,
@@ -135,7 +155,7 @@
     }
 
     .downloads-menu[open] summary::after {
-      content: "▴";
+      transform: rotate(180deg);
     }
 
     .downloads-panel {
@@ -358,7 +378,16 @@
       flex-wrap: wrap;
     }
 
-    .range-buttons,
+    .range-buttons {
+      display: flex;
+      gap: 2px;
+      padding: 4px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      flex-wrap: wrap;
+    }
+
     .download-links {
       display: flex;
       gap: 10px;
@@ -384,20 +413,19 @@
     }
 
     .range-buttons button {
-      min-height: 40px;
-      padding: 8px 16px;
-      border-color: var(--border);
+      min-height: 34px;
+      padding: 7px 14px;
+      border-color: transparent;
       border-radius: 9px;
-      background: var(--card);
+      background: transparent;
       color: var(--text-secondary);
       font-size: 14px;
       font-weight: 600;
-      box-shadow:
-        0 1px 2px var(--shadow);
+      box-shadow: none;
     }
 
     .range-buttons button:hover {
-      border-color: var(--gold);
+      border-color: transparent;
       background: var(--surface-hover-strong);
       color: var(--gold-ink);
     }
@@ -430,6 +458,19 @@
       * reserving 530 pixels.
       */
       height: clamp(390px, 45vh, 460px);
+
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+
+    .chart-wrapper.revealed {
+      opacity: 1;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .chart-wrapper {
+        transition: none;
+      }
     }
 
     #gold-chart {
@@ -447,6 +488,11 @@
       color: var(--muted);
     }
 
+    .loading {
+      flex-direction: column;
+      gap: 14px;
+    }
+
     .loading.visible,
     .error.visible {
       display: flex;
@@ -454,6 +500,27 @@
 
     .error {
       color: var(--red);
+    }
+
+    .spinner {
+      width: 34px;
+      height: 34px;
+      border: 3px solid var(--border);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .spinner {
+        animation: none;
+      }
     }
 
     .summary {
@@ -606,12 +673,12 @@
         width: 100%;
         grid-template-columns:
           repeat(3, minmax(0, 1fr));
-        gap: 8px;
+        gap: 4px;
       }
 
       .range-buttons button {
         width: 100%;
-        min-height: 40px;
+        min-height: 38px;
         padding: 8px 7px;
       }
 
