@@ -9,6 +9,8 @@
 
   <title>Kerala Gold Rate Tracker</title>
 
+  <meta name="color-scheme" content="light dark">
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
   <link rel="stylesheet" href="styles.css">
@@ -326,6 +328,52 @@
     let currentHistoricalRecords = [];
 
     let chart = null;
+
+    const darkModeQuery = window.matchMedia(
+      "(prefers-color-scheme: dark)"
+    );
+
+    function getChartTheme() {
+      if (darkModeQuery.matches) {
+        return {
+          cardSurface: "#1a1a19",
+          olderYearly: "#9c4526",
+          dailyGold: "#bc8916",
+          dailyGoldFillStrong:
+            "rgba(188, 137, 22, 0.18)",
+          dailyGoldFillMuted:
+            "rgba(188, 137, 22, 0.08)",
+          pointHover: "#ff8a3d",
+          international: "#4c8fe0",
+          goldAxis: "#d9a840",
+          xGridTick: "#5a5952",
+          xAxisBorder: "#383835",
+          xTickLabel: "#c3c2b7",
+          yGridLine: "#2c2c2a",
+          yTickLabel: "#c3c2b7",
+          legendTitle: "#918f88",
+        };
+      }
+
+      return {
+        cardSurface: "#ffffff",
+        olderYearly: "#9b7a17",
+        dailyGold: "#d4a017",
+        dailyGoldFillStrong:
+          "rgba(212, 160, 23, 0.15)",
+        dailyGoldFillMuted:
+          "rgba(212, 160, 23, 0.06)",
+        pointHover: "#e65100",
+        international: "#1565c0",
+        goldAxis: "#9a6b00",
+        xGridTick: "#777777",
+        xAxisBorder: "#aaaaaa",
+        xTickLabel: "#555555",
+        yGridLine: "#eeeeee",
+        yTickLabel: "#555555",
+        legendTitle: "#777777",
+      };
+    }
 
     const currencyFormatter =
       new Intl.NumberFormat("en-IN", {
@@ -1143,6 +1191,8 @@
       comparisonEnabled = false,
       comparisonMode = "actual"
     ) {
+      const theme = getChartTheme();
+
       const keralaRangeRecords = [
         ...historicalRecords,
         ...records,
@@ -1334,14 +1384,14 @@
             "Older yearly prices prior to 2009",
           data: historicalPoints,
           parsing: false,
-          borderColor: "#9b7a17",
-          backgroundColor: "#9b7a17",
+          borderColor: theme.olderYearly,
+          backgroundColor: theme.olderYearly,
           borderWidth: 1.5,
           borderDash: [6, 5],
           pointRadius: 4,
           pointHoverRadius: 7,
-          pointBackgroundColor: "#fff",
-          pointBorderColor: "#9b7a17",
+          pointBackgroundColor: theme.cardSurface,
+          pointBorderColor: theme.olderYearly,
           pointBorderWidth: 2,
           fill: false,
           tension: 0,
@@ -1360,17 +1410,17 @@
                 : "Daily prices from 2009 onwards",
           data: dailyPoints,
           parsing: false,
-          borderColor: "#d4a017",
+          borderColor: theme.dailyGold,
           backgroundColor:
             hasActiveComparison
-              ? "rgba(212, 160, 23, 0.06)"
-              : "rgba(212, 160, 23, 0.15)",
+              ? theme.dailyGoldFillMuted
+              : theme.dailyGoldFillStrong,
           borderWidth: 2.5,
           pointRadius: 0,
           pointHoverRadius: 5,
           pointHoverBackgroundColor:
-            "#e65100",
-          pointHoverBorderColor: "#ffffff",
+            theme.pointHover,
+          pointHoverBorderColor: theme.cardSurface,
           pointHoverBorderWidth: 2,
           fill: !hasActiveComparison,
           tension: 0,
@@ -1386,8 +1436,8 @@
           data: internationalPoints,
           parsing: false,
 
-          borderColor: "#1565c0",
-          backgroundColor: "#1565c0",
+          borderColor: theme.international,
+          backgroundColor: theme.international,
 
           // Continuous blue line.
           borderWidth: 2.25,
@@ -1402,8 +1452,8 @@
           pointRadius: 0,
           pointHitRadius: 10,
           pointHoverRadius: 5,
-          pointHoverBackgroundColor: "#ffffff",
-          pointHoverBorderColor: "#1565c0",
+          pointHoverBackgroundColor: theme.cardSurface,
+          pointHoverBorderColor: theme.international,
           pointHoverBorderWidth: 2,
 
           fill: false,
@@ -1494,7 +1544,7 @@
                 text:
                   "Tap a label to show or hide a series",
 
-                color: "#777777",
+                color: theme.legendTitle,
 
                 padding: {
                   top: 8,
@@ -1707,14 +1757,14 @@
                   window.innerWidth <= 720
                     ? 10
                     : 7,
-                tickColor: "#777777",
-                color: "#777777",
+                tickColor: theme.xGridTick,
+                color: theme.xGridTick,
                 lineWidth: 1.5,
               },
 
               border: {
                 display: true,
-                color: "#aaaaaa",
+                color: theme.xAxisBorder,
                 width: 1,
               },
 
@@ -1727,7 +1777,7 @@
                 autoSkip: true,
                 autoSkipPadding: 12,
                 padding: 7,
-                color: "#555555",
+                color: theme.xTickLabel,
 
                 callback(value) {
                   return new Intl.DateTimeFormat(
@@ -1747,14 +1797,14 @@
               position: "left",
 
               grid: {
-                color: "#eeeeee",
+                color: theme.yGridLine,
               },
 
               ticks: {
                 color:
                   isActualComparison
-                    ? "#9a6b00"
-                    : "#555555",
+                    ? theme.goldAxis
+                    : theme.yTickLabel,
 
                 callback(value) {
                   if (isRelativeComparison) {
@@ -1774,8 +1824,8 @@
 
                 color:
                   isActualComparison
-                    ? "#9a6b00"
-                    : "#555555",
+                    ? theme.goldAxis
+                    : theme.yTickLabel,
 
                 text:
                   isRelativeComparison
@@ -1797,11 +1847,11 @@
               },
 
               border: {
-                color: "#1565c0",
+                color: theme.international,
               },
 
               ticks: {
-                color: "#1565c0",
+                color: theme.international,
 
                 callback(value) {
                   return usdFormatter.format(
@@ -1812,7 +1862,7 @@
 
               title: {
                 display: isActualComparison,
-                color: "#1565c0",
+                color: theme.international,
                 text:
                   "International gold, USD per gram",
               },
@@ -2160,7 +2210,13 @@
         renderCurrentView();
       }
     );
-    
+
+    darkModeQuery.addEventListener("change", () => {
+      if (chart) {
+        renderCurrentView();
+      }
+    });
+
     document.addEventListener("click", event => {
       if (
         downloadsMenu.open &&
