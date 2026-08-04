@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import call, patch
 
@@ -29,6 +30,272 @@ class InternationalReferenceCoordinatorTests(
     unittest.TestCase
 ):
     """Protect command ordering, preview safety, and rollback behavior."""
+    def test_two_days_old_uses_recent_only(self):
+        """Two days remains within the recent-only route."""
+
+        latest = datetime(
+            2026,
+            8,
+            1,
+            tzinfo=timezone.utc,
+        )
+
+        route, reasons = (
+            coordinator.select_update_route(
+                latest,
+                latest - timedelta(hours=1),
+                latest + timedelta(days=2),
+            )
+        )
+
+        self.assertEqual(
+            route,
+            coordinator.RECENT_ONLY_ROUTE,
+        )
+
+        self.assertEqual(
+            reasons,
+            [],
+        )
+
+    def test_exactly_four_days_uses_recent_only(self):
+        """Exactly four days is allowed in recent-only mode."""
+
+        latest = datetime(
+            2026,
+            8,
+            1,
+            tzinfo=timezone.utc,
+        )
+
+        route, reasons = (
+            coordinator.select_update_route(
+                latest,
+                latest - timedelta(hours=1),
+                latest + timedelta(days=4),
+            )
+        )
+
+        self.assertEqual(
+            route,
+            coordinator.RECENT_ONLY_ROUTE,
+        )
+
+        self.assertEqual(
+            reasons,
+            [],
+        )
+
+    def test_more_than_four_days_requires_catchup(self):
+        """One millisecond beyond four days requires catch-up."""
+
+        latest = datetime(
+            2026,
+            8,
+            1,
+            tzinfo=timezone.utc,
+        )
+
+        route, reasons = (
+            coordinator.select_update_route(
+                latest,
+                latest - timedelta(hours=1),
+                (
+                    latest
+                    + timedelta(days=4)
+                    + timedelta(milliseconds=1)
+                ),
+            )
+        )
+
+        self.assertEqual(
+            route,
+            coordinator.HISTORICAL_CATCHUP_ROUTE,
+        )
+
+        self.assertTrue(reasons)
+
+    def test_recent_coverage_gap_requires_catchup(self):
+        """A recent export starting after history leaves a gap."""
+
+        latest = datetime(
+            2026,
+            8,
+            1,
+            tzinfo=timezone.utc,
+        )
+
+        route, reasons = (
+            coordinator.select_update_route(
+                latest,
+                latest + timedelta(seconds=1),
+                latest + timedelta(days=2),
+            )
+        )
+
+        self.assertEqual(
+            route,
+            coordinator.HISTORICAL_CATCHUP_ROUTE,
+        )
+
+        self.assertTrue(reasons)
+
+    def test_recent_route_metadata_is_read_from_export(self):
+        """Valid browser metadata should produce aware UTC times."""
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = (
+                Path(directory)
+                / "recent-preview.json"
+            )
+
+            path.write_text(
+                """
+{
+  "retrieved_at_utc": "2026-08-05T12:00:10.000Z",
+  "estimated_first_timestamp_utc": "2026-08-01T12:00:00.000Z",
+  "estimated_last_timestamp_utc": "2026-08-05T12:00:00.000Z",
+  "price_count": 34561,
+  "instrument": "USD-XAU",
+  "source": "GoldPrice.org"
+}
+""".strip(),
+                encoding="utf-8",
+            )
+
+            metadata = (
+                coordinator.read_recent_route_metadata(
+                    path
+                )
+            )
+
+        self.assertEqual(
+            metadata["first_timestamp"],
+            datetime(
+                2026,
+                8,
+                1,
+                12,
+                0,
+                tzinfo=timezone.utc,
+            ),
+        )
+
+        self.assertEqual(
+            metadata["retrieved_timestamp"],
+            datetime(
+                2026,
+                8,
+                5,
+                12,
+                0,
+                10,
+                tzinfo=timezone.utc,
+            ),
+        )
+
+        self.assertEqual(
+            metadata["price_count"],
+            34561,
+        )
+
+    def test_recent_route_metadata_rejects_missing_field(self):
+        """Missing route metadata must stop before updating."""
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = (
+                Path(directory)
+                / "recent-preview.json"
+            )
+
+            path.write_text(
+                """
+{
+  "retrieved_at_utc": "2026-08-05T12:00:10.000Z",
+  "estimated_last_timestamp_utc": "2026-08-05T12:00:00.000Z",
+  "price_count": 34561,
+  "instrument": "USD-XAU",
+  "source": "GoldPrice.org"
+}
+""".strip(),
+                encoding="utf-8",
+            )
+
+            with self.assertRaises(ValueError):
+                coordinator.read_recent_route_metadata(
+                    path
+                )
+
+    def test_recent_route_metadata_rejects_naive_time(self):
+        """Route timestamps must include a timezone."""
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = (
+                Path(directory)
+                / "recent-preview.json"
+            )
+
+            path.write_text(
+                """
+{
+  "retrieved_at_utc": "2026-08-05T12:00:10",
+  "estimated_first_timestamp_utc": "2026-08-01T12:00:00.000Z",
+  "estimated_last_timestamp_utc": "2026-08-05T12:00:00.000Z",
+  "price_count": 34561,
+  "instrument": "USD-XAU",
+  "source": "GoldPrice.org"
+}
+""".strip(),
+                encoding="utf-8",
+            )
+
+            with self.assertRaises(ValueError):
+                coordinator.read_recent_route_metadata(
+                    path
+                )
+
+    def test_latest_permanent_timestamp_is_read(self):
+        """The final chronological CSV row defines current coverage."""
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = (
+                Path(directory)
+                / "international.csv"
+            )
+
+            path.write_text(
+                (
+                    "timestamp_utc,date,"
+                    "price_usd_per_troy_ounce,"
+                    "price_usd_per_gram,source\n"
+                    "2026-08-01T04:00:00.000Z,"
+                    "2026-08-01,4000.0000,"
+                    "128.603222,GoldPrice.org\n"
+                    "2026-08-02T04:00:00.000Z,"
+                    "2026-08-02,4010.0000,"
+                    "128.924730,GoldPrice.org\n"
+                ),
+                encoding="utf-8",
+            )
+
+            actual = (
+                coordinator
+                .read_latest_permanent_timestamp(
+                    path
+                )
+            )
+
+        self.assertEqual(
+            actual,
+            datetime(
+                2026,
+                8,
+                2,
+                4,
+                0,
+                tzinfo=timezone.utc,
+            ),
+        )
 
     def test_preview_uses_read_only_commands(self):
         """Preview mode must not pass --apply to either updater."""
@@ -363,6 +630,89 @@ class InternationalReferenceCoordinatorTests(
                 labels,
             )
 
+    def test_missing_historical_input_stops_workflow(self):
+        """Catch-up must stop before any updater is started."""
+
+        recent_input = Path(
+            "recent-preview.json"
+        )
+
+        recent_metadata = {
+            "first_timestamp": datetime(
+                2026,
+                8,
+                10,
+                tzinfo=timezone.utc,
+            ),
+            "last_timestamp": datetime(
+                2026,
+                8,
+                14,
+                tzinfo=timezone.utc,
+            ),
+            "retrieved_timestamp": datetime(
+                2026,
+                8,
+                14,
+                0,
+                0,
+                10,
+                tzinfo=timezone.utc,
+            ),
+            "price_count": 100,
+        }
+
+        arguments = argparse.Namespace(
+            recent_input=recent_input,
+            historical_input=None,
+            apply=False,
+        )
+
+        with (
+            patch.object(
+                coordinator,
+                "parse_args",
+                return_value=arguments,
+            ),
+            patch.object(
+                Path,
+                "exists",
+                return_value=True,
+            ),
+            patch.object(
+                coordinator,
+                "read_latest_permanent_timestamp",
+                return_value=datetime(
+                    2026,
+                    8,
+                    1,
+                    tzinfo=timezone.utc,
+                ),
+            ),
+            patch.object(
+                coordinator,
+                "read_recent_route_metadata",
+                return_value=recent_metadata,
+            ),
+            patch.object(
+                coordinator,
+                "run_preview",
+            ) as run_preview,
+            patch.object(
+                coordinator,
+                "run_apply",
+            ) as run_apply,
+        ):
+            result = coordinator.main()
+
+        self.assertEqual(
+            result,
+            2,
+        )
+
+        run_preview.assert_not_called()
+        run_apply.assert_not_called()
+
     def test_main_rejects_missing_recent_input(self):
         """A missing browser export must stop before any workflow runs."""
 
@@ -372,6 +722,7 @@ class InternationalReferenceCoordinatorTests(
 
         arguments = argparse.Namespace(
             recent_input=missing_path,
+            historical_input=None,
             apply=False,
         )
 
