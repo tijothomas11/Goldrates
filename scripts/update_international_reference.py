@@ -925,11 +925,6 @@ def main() -> int:
                 historical_input,
             )
 
-            # Applying now would continue without using
-            # the required catch-up data. Stop until the
-            # historical parser is connected.
-            return 2
-
         if args.apply:
             run_apply(
                 recent_input,
