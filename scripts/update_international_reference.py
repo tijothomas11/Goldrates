@@ -622,16 +622,25 @@ def validate_permanent_datasets() -> None:
 
 def run_preview(
     recent_input: Path,
+    historical_input: Path | None = None,
 ) -> None:
-    """Preview both source updates without modifying permanent files."""
+    """Preview source updates without modifying permanent files."""
+
+    international_arguments = [
+        "scripts/update_international_gold.py",
+        "--recent-input",
+        str(recent_input),
+    ]
+
+    if historical_input is not None:
+        international_arguments.extend([
+            "--historical-input",
+            str(historical_input),
+        ])
 
     run_python(
         "Preview international gold update",
-        [
-            "scripts/update_international_gold.py",
-            "--recent-input",
-            str(recent_input),
-        ],
+        international_arguments,
     )
 
     run_python(
@@ -654,9 +663,9 @@ def run_preview(
         "both source updates succeed."
     )
 
-
 def run_apply(
     recent_input: Path,
+    historical_input: Path | None = None,
 ) -> None:
     """Apply the complete workflow with shared rollback protection."""
 
@@ -668,15 +677,25 @@ def run_apply(
         )
 
         try:
+            international_arguments = [
+                "scripts/update_international_gold.py",
+                "--recent-input",
+                str(recent_input),
+            ]
+
+            if historical_input is not None:
+                international_arguments.extend([
+                    "--historical-input",
+                    str(historical_input),
+                ])
+
+            international_arguments.append(
+                "--apply"
+            )
+
             run_python(
                 "Apply international gold update",
-                [
-                    "scripts/"
-                    "update_international_gold.py",
-                    "--recent-input",
-                    str(recent_input),
-                    "--apply",
-                ],
+                international_arguments,
             )
 
             run_python(
@@ -899,18 +918,11 @@ def main() -> int:
 
             print()
             print(
-                "Historical input was supplied:"
+                "Historical catch-up input:"
             )
             print(
                 " ",
                 historical_input,
-            )
-            print(
-                "Historical parsing is not connected "
-                "in this checkpoint."
-            )
-            print(
-                "No permanent file was changed."
             )
 
             # Applying now would continue without using
@@ -920,11 +932,13 @@ def main() -> int:
 
         if args.apply:
             run_apply(
-                recent_input
+                recent_input,
+                historical_input=historical_input,
             )
         else:
             run_preview(
-                recent_input
+                recent_input,
+                historical_input=historical_input,
             )
 
     except subprocess.CalledProcessError as exc:

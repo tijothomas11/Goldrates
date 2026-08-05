@@ -1,10 +1,12 @@
-"""Read-only foundation for international gold updates.
+"""Safely preview or update international gold history.
 
-This module parses saved GoldPrice.org historical and recent
-responses and compares incoming observations with immutable
-permanent history.
+The updater accepts historical and recent GoldPrice.org browser exports,
+normalizes their observations, and compares them with immutable permanent
+history.
 
-It does not download data or modify permanent files yet.
+Preview mode is read-only. Apply mode validates a temporary candidate,
+creates a backup, replaces the permanent file atomically, and validates
+the final result.
 """
 
 from __future__ import annotations
@@ -616,6 +618,15 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--historical-input",
+        type=Path,
+        help=(
+            "Optional historical GoldPrice.org CSV "
+            "export used to fill a missing period."
+        ),
+    )
+
+    parser.add_argument(
         "--apply",
         action="store_true",
         help=(
@@ -834,6 +845,123 @@ def read_recent_browser_export(
         json.dumps(payload),
         retrieval_timestamp,
     )
+
+def read_historical_browser_export(
+    path: Path,
+) -> list[dict[str, object]]:
+    """Read and validate a historical GoldPrice.org CSV export."""
+
+    if not path.exists():
+        raise FileNotFoundError(
+            "Historical export does not exist: "
+            f"{path}"
+        )
+
+    errors, warnings, validated_rows = (
+        validate_file(path)
+    )
+
+    if errors:
+        details = "\n".join(
+            f"- {error}"
+            for error in errors[:20]
+        )
+
+        raise ValueError(
+            "Historical export failed validation:\n"
+            f"{details}"
+        )
+
+    if not validated_rows:
+        raise ValueError(
+            "Historical export contains no "
+            "valid observations."
+        )
+
+    if warnings:
+        print(
+            "Historical export warnings:",
+            len(warnings),
+        )
+
+    records: list[dict[str, object]] = []
+
+    with path.open(
+        "r",
+        encoding="utf-8",
+        newline="",
+    ) as file:
+        reader = csv.DictReader(file)
+
+        if reader.fieldnames != EXPECTED_FIELDS:
+            raise ValueError(
+                "Unexpected historical-export "
+                "columns. "
+                f"Expected {EXPECTED_FIELDS}; "
+                f"found {reader.fieldnames}."
+            )
+
+        for row_number, row in enumerate(
+            reader,
+            start=2,
+        ):
+            timestamp_text = row[
+                "timestamp_utc"
+            ].strip()
+
+            try:
+                timestamp = datetime.fromisoformat(
+                    timestamp_text.replace(
+                        "Z",
+                        "+00:00",
+                    )
+                )
+            except ValueError as exc:
+                raise ValueError(
+                    "Historical export row "
+                    f"{row_number}: invalid timestamp "
+                    f"{timestamp_text!r}."
+                ) from exc
+
+            if (
+                timestamp.tzinfo is None or
+                timestamp.utcoffset() is None
+            ):
+                raise ValueError(
+                    "Historical export row "
+                    f"{row_number}: timestamp must "
+                    "include a timezone."
+                )
+
+            ounce_price = parse_price(
+                row[
+                    "price_usd_per_troy_ounce"
+                ]
+            )
+
+            record = create_record(
+                timestamp,
+                ounce_price,
+            )
+
+            if (
+                record["timestamp_utc"] !=
+                timestamp_text
+            ):
+                raise ValueError(
+                    "Historical export row "
+                    f"{row_number}: timestamp is not "
+                    "normalized to UTC milliseconds."
+                )
+
+            records.append(record)
+
+    records.sort(
+        key=lambda record:
+            record["timestamp"]
+    )
+
+    return records
 
 def combine_incoming_records(
     historical_records: list[
@@ -1104,11 +1232,23 @@ def run_fetch_preview() -> int:
 
     return 0
 
-def run_recent_input_preview(
+def run_browser_input_preview(
     recent_input: Path,
+    historical_input: Path | None = None,
     apply: bool = False,
 ) -> int:
-    """Preview or safely apply a browser export."""
+    """Preview or apply historical and recent browser exports."""
+
+    historical_records: list[
+        dict[str, object]
+    ] = []
+
+    if historical_input is not None:
+        historical_records = (
+            read_historical_browser_export(
+                historical_input
+            )
+        )
 
     (
         recent_payload,
@@ -1122,25 +1262,32 @@ def run_recent_input_preview(
         retrieval_timestamp,
     )
 
+    incoming_records = (
+        combine_incoming_records(
+            historical_records,
+            recent_records,
+        )
+    )
+
     permanent = read_permanent_history(
         PERMANENT_PATH
     )
 
     additions, conflicts = compare_histories(
         permanent,
-        recent_records,
+        incoming_records,
     )
 
     unchanged_count = count_unchanged_records(
         permanent,
-        recent_records,
+        incoming_records,
     )
 
     print_preview(
         len(permanent),
-        0,
+        len(historical_records),
         len(recent_records),
-        len(recent_records),
+        len(incoming_records),
         unchanged_count,
         additions,
         conflicts,
@@ -1185,11 +1332,22 @@ def run_recent_input_preview(
         PERMANENT_PATH,
     )
 
-    print(
-        "Result: PASSED"
-    )
+    print("Result: PASSED")
 
     return 0
+
+
+def run_recent_input_preview(
+    recent_input: Path,
+    apply: bool = False,
+) -> int:
+    """Preserve the existing recent-only entry point."""
+
+    return run_browser_input_preview(
+        recent_input=recent_input,
+        historical_input=None,
+        apply=apply,
+    )
 
 def format_ounce_price(
     value: Decimal,
@@ -1449,7 +1607,7 @@ def apply_additions(
         )
 
 def main() -> int:
-    """Run the requested read-only preview."""
+    """Run a fetch preview or process browser-exported inputs."""
 
     args = parse_args()
 
@@ -1462,20 +1620,45 @@ def main() -> int:
         return 1
 
     if (
-        args.fetch and
-        args.recent_input is not None
+        args.historical_input is not None and
+        args.recent_input is None
     ):
         print(
-            "Choose either --fetch or "
-            "--recent-input, not both."
+            "--historical-input requires "
+            "--recent-input."
+        )
+
+        return 1
+
+    if (
+        args.fetch and
+        (
+            args.recent_input is not None or
+            args.historical_input is not None
+        )
+    ):
+        print(
+            "Choose either --fetch or browser "
+            "input files, not both."
         )
 
         return 1
 
     try:
         if args.recent_input is not None:
-            return run_recent_input_preview(
-                args.recent_input.resolve(),
+            recent_input = (
+                args.recent_input.resolve()
+            )
+
+            historical_input = (
+                args.historical_input.resolve()
+                if args.historical_input is not None
+                else None
+            )
+
+            return run_browser_input_preview(
+                recent_input=recent_input,
+                historical_input=historical_input,
                 apply=args.apply,
             )
 

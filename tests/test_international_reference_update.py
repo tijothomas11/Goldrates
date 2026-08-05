@@ -746,6 +746,127 @@ class InternationalReferenceCoordinatorTests(
 
         run_preview.assert_not_called()
 
+    def test_preview_passes_historical_input_to_updater(
+        self
+    ):
+        """Catch-up preview must pass both browser exports."""
+
+        recent_input = Path(
+            "recent-preview.json"
+        )
+
+        historical_input = Path(
+            "historical-preview.csv"
+        )
+
+        with patch.object(
+            coordinator,
+            "run_python",
+        ) as run_python:
+            coordinator.run_preview(
+                recent_input,
+                historical_input=historical_input,
+            )
+
+        self.assertEqual(
+            run_python.call_args_list[0],
+            call(
+                "Preview international gold update",
+                [
+                    "scripts/"
+                    "update_international_gold.py",
+                    "--recent-input",
+                    str(recent_input),
+                    "--historical-input",
+                    str(historical_input),
+                ],
+            ),
+        )
+
+    def test_apply_passes_historical_input_to_updater(
+        self
+    ):
+        """Catch-up apply must pass both inputs and --apply."""
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+
+            paths = [
+                root / "international.csv",
+                root / "usd-inr.csv",
+                root / "reference.csv",
+            ]
+
+            for path in paths:
+                path.write_bytes(
+                    b"original\n"
+                )
+
+            recent_input = (
+                root / "recent-preview.json"
+            )
+
+            historical_input = (
+                root / "historical-preview.csv"
+            )
+
+            recent_input.write_text(
+                "{}",
+                encoding="utf-8",
+            )
+
+            historical_input.write_text(
+                "fixture",
+                encoding="utf-8",
+            )
+
+            with (
+                patch.object(
+                    coordinator,
+                    "INTERNATIONAL_GOLD_PATH",
+                    paths[0],
+                ),
+                patch.object(
+                    coordinator,
+                    "USD_INR_PATH",
+                    paths[1],
+                ),
+                patch.object(
+                    coordinator,
+                    "REFERENCE_PATH",
+                    paths[2],
+                ),
+                patch.object(
+                    coordinator,
+                    "PERMANENT_PATHS",
+                    paths,
+                ),
+                patch.object(
+                    coordinator,
+                    "run_python",
+                ) as run_python,
+            ):
+                coordinator.run_apply(
+                    recent_input,
+                    historical_input=historical_input,
+                )
+
+        self.assertEqual(
+            run_python.call_args_list[0],
+            call(
+                "Apply international gold update",
+                [
+                    "scripts/"
+                    "update_international_gold.py",
+                    "--recent-input",
+                    str(recent_input),
+                    "--historical-input",
+                    str(historical_input),
+                    "--apply",
+                ],
+            ),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
