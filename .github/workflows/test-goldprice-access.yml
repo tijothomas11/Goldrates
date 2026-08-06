@@ -1,0 +1,70 @@
+name: Test GoldPrice access
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-access:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Test GoldPrice endpoints
+        run: |
+          echo "Testing historical endpoint..."
+
+          curl \
+            --fail \
+            --location \
+            --silent \
+            --show-error \
+            --connect-timeout 30 \
+            --max-time 180 \
+            --output /tmp/historical.json \
+            "https://data-asg.goldprice.org/GetDataHistorical/USD-XAU/0"
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("/tmp/historical.json")
+          payload = json.loads(path.read_text(encoding="utf-8"))
+
+          assert isinstance(payload, list)
+          assert len(payload) == 1
+          assert isinstance(payload[0], str)
+          assert payload[0].startswith("USD-XAU!")
+
+          print("Historical endpoint: PASSED")
+          print("Downloaded bytes:", path.stat().st_size)
+          PY
+
+          echo "Testing recent endpoint..."
+
+          curl \
+            --fail \
+            --location \
+            --silent \
+            --show-error \
+            --connect-timeout 30 \
+            --max-time 180 \
+            --output /tmp/recent.json \
+            "https://data-asg.goldprice.org/GetData/USD-XAU/0"
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("/tmp/recent.json")
+          payload = json.loads(path.read_text(encoding="utf-8"))
+
+          assert isinstance(payload, list)
+          assert len(payload) == 1
+          assert isinstance(payload[0], str)
+          assert payload[0].startswith("USD-XAU,")
+
+          print("Recent endpoint: PASSED")
+          print("Downloaded bytes:", path.stat().st_size)
+          PY
