@@ -1157,6 +1157,39 @@
         `${records.length.toLocaleString()} daily records`;
     }
 
+    function getTimestampBounds(
+      timestamps
+    ) {
+      let minimum = Infinity;
+      let maximum = -Infinity;
+
+      for (const timestamp of timestamps) {
+        if (!Number.isFinite(timestamp)) {
+          continue;
+        }
+
+        if (timestamp < minimum) {
+          minimum = timestamp;
+        }
+
+        if (timestamp > maximum) {
+          maximum = timestamp;
+        }
+      }
+
+      if (
+        minimum === Infinity ||
+        maximum === -Infinity
+      ) {
+        return null;
+      }
+
+      return {
+        minimum,
+        maximum,
+      };
+    }
+
     function updateVisibleXAxis(chartInstance) {
       const visibleTimestamps = [];
 
@@ -1182,11 +1215,20 @@
         return;
       }
 
+      const timestampBounds =
+        getTimestampBounds(
+          visibleTimestamps
+        );
+
+      if (!timestampBounds) {
+        return;
+      }
+
       chartInstance.options.scales.x.min =
-        Math.min(...visibleTimestamps);
+        timestampBounds.minimum;
 
       chartInstance.options.scales.x.max =
-        Math.max(...visibleTimestamps);
+        timestampBounds.maximum;
     }
 
     function buildChart(
@@ -1372,13 +1414,25 @@
         return;
       }
 
-      const firstTimestamp = Math.min(
-        ...allTimestamps
-      );
+      const timestampBounds =
+        getTimestampBounds(
+          allTimestamps
+        );
 
-      const lastTimestamp = Math.max(
-        ...allTimestamps
-      );
+      if (!timestampBounds) {
+        showError(
+          "No valid timestamps are available " +
+          "for this chart."
+        );
+
+        return;
+      }
+
+      const firstTimestamp =
+        timestampBounds.minimum;
+
+      const lastTimestamp =
+        timestampBounds.maximum;
 
       const datasets = [];
 
