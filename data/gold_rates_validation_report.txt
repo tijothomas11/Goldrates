@@ -1,10 +1,10 @@
 KeralaGold Backfill Validation Report
 =====================================
-Generated: 2026-09-21T18:15:19.848409+00:00
+Generated: 2026-09-22T17:07:01.628973+00:00
 Input: /home/runner/work/Goldrates/Goldrates/data/gold_rates_history.csv
-CSV records: 6402
-Parsed records: 6402
-Date range: 2009-11-01 to 2026-09-21
+CSV records: 6403
+Parsed records: 6403
+Date range: 2009-11-01 to 2026-09-22
 
 Overall result
 ==============
@@ -15,12 +15,12 @@ Backfill error-log entries: 0
 
 Source coverage
 ===============
-Published gram records: 5703
-Published pavan records: 6402
-Records with both sources: 5703
+Published gram records: 5704
+Published pavan records: 6403
+Records with both sources: 5704
 Pavan-only records: 699
 Gram-only records: 0
-Exact gram versus pavan/8 matches: 5703
+Exact gram versus pavan/8 matches: 5704
 Non-zero gram/pavan differences: 0
 
 Archive completion
@@ -38,7 +38,7 @@ Afternoon: 117
 Evening: 92
 Forenoon: 1
 Morning: 200
-Standard: 5992
+Standard: 5993
 
 Records by month
 ================
@@ -244,7 +244,7 @@ Records by month
 2026-06: 39
 2026-07: 37
 2026-08: 47
-2026-09: 27
+2026-09: 28
 
 Data-integrity errors
 =====================
